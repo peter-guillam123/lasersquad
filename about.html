@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — Laser Squad</title>
+  <link rel="stylesheet" href="css/style.css?v=dev">
+  <style>
+    .doc { max-width: 720px; margin: 0 auto; padding: 8px 24px 80px; line-height: 1.65; }
+    .doc h1 { letter-spacing: 2px; }
+    .doc h2 { margin-top: 38px; font-size: 16px; letter-spacing: 1px; }
+    .doc p { color: #c4cbd4; }
+    .doc .lede { font-size: 18px; color: var(--ink); }
+    .entry { border-left: 2px solid var(--line); padding-left: 18px; margin: 22px 0; }
+    .entry.milestone { border-left-color: var(--gold); }
+    .entry .date { font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+    .entry h3 { margin: 4px 0 8px; font-size: 15px; }
+    .tag { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--gold); margin-left: 8px; }
+    .back { color: var(--muted); text-decoration: none; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">LASER&nbsp;SQUAD</div>
+    <nav><a class="back" href="index.html">▸ Play</a></nav>
+  </header>
+
+  <article class="doc">
+    <h1>About</h1>
+    <p class="lede">A modern, browser-based remake of <em>Laser Squad</em> — Julian Gollop's 1988 turn-based
+      tactics game, the one that taught X-COM everything it knew.</p>
+
+    <p>This is built entirely in conversation with Claude: I describe what I want, it does the typing.
+      The aim isn't a perfect port. It's to capture the <em>feeling</em> of the original — the action-point
+      economy where every step and shot is a decision, the line-of-sight tension, the way a turn ends with
+      you holding your breath — in something that looks clean on a modern screen.</p>
+
+    <p>Two players, hot-seat, on one screen for now. No build tools, no frameworks: plain JavaScript and
+      hand-drawn SVG, so the whole thing is a folder of files you could read end to end. A computer
+      opponent comes later.</p>
+
+    <h2>Development diary</h2>
+
+    <div class="entry milestone">
+      <div class="date">3 JUNE 2026 <span class="tag">MILESTONE</span></div>
+      <h3>Fog of war</h3>
+      <p>Now you only see what your soldiers can see. The map's there, but enemies are hidden until one of
+        your squad gets eyes on them — and the moment you lose sight, they leave a faded "?" where you last
+        saw them, so you can reason about where they've gone rather than having the information snatched away.
+        Walk a soldier forward and the dark peels back; the first time an unseen sentry opens up on you from
+        a doorway you hadn't cleared, the whole game tightens.</p>
+      <p>Because it's two players on one screen, there's now a "pass the device" card between turns, so
+        nobody sees the other's view. And the danger warning finally makes sense: reachable tiles get a red
+        outline when an enemy <em>you can actually see</em> could shoot you there — never a hint about the
+        ones you can't, which would be cheating. Knowing where you're safe to step, based only on what you've
+        scouted, is the whole game.</p>
+    </div>
+
+    <div class="entry">
+      <div class="date">3 JUNE 2026</div>
+      <h3>Reading the battlefield</h3>
+      <p>A legibility pass on the overlays. Movement and field-of-view were both wearing blue, which was
+        muddling two different ideas, so a soldier's view is now green, enemy danger is red and layered on
+        top so overlaps read as threat rather than mud. And the move-field comes in two tones: solid where
+        you can go and still bank the action points to fire on reaction next turn, grey where moving spends
+        you out. You can now see, before you commit, exactly where you stop being a threat.</p>
+    </div>
+
+    <div class="entry milestone">
+      <div class="date">3 JUNE 2026 <span class="tag">MILESTONE</span></div>
+      <h3>Opportunity fire and cover</h3>
+      <p>The heart of the game, and the reason you never spend your last action points. End a turn with a
+        soldier facing the right way and some AP banked, and on the enemy's turn it'll fire on anyone who
+        crosses its view. Movement is no longer instant — a soldier walks tile by tile and stops dead the
+        moment it's spotted, having spent the AP for the steps it took. The first time an enemy gets caught
+        edging through a doorway you'd left covered, the whole thing clicks.</p>
+      <p>The hard part isn't the shooting, it's making it legible — automatic reactions are notorious for
+        feeling arbitrary. So: hover any soldier and the board paints the exact tiles it can watch, walls and
+        arc included; when a reaction lands you see the tracer and the log says so. Walls now give cover too,
+        cutting the hit chance when a target is tucked behind one — and the percentage you already see on
+        hover simply drops, so the maths is never hidden. The facing ring, cosmetic until now, suddenly
+        decides games.</p>
+    </div>
+
+    <div class="entry">
+      <div class="date">3 JUNE 2026</div>
+      <h3>Turning, properly</h3>
+      <p>The first build let you pivot a soldier by clicking empty ground — except it only worked on tiles
+        out of walking range, which is backwards and useless while you still have action points. Replaced
+        it with a ring of eight arrows around the selected soldier: click one to turn on the spot. Movement
+        still auto-faces the way you walked, so the ring is only for when you deliberately want to watch a
+        different direction — which won't matter much until a soldier's facing decides what it can react to.</p>
+    </div>
+
+    <div class="entry milestone">
+      <div class="date">2 JUNE 2026 <span class="tag">MILESTONE</span></div>
+      <h3>The vertical slice</h3>
+      <p>First playable build. One map — a compound raid: blue squad breaches from the west, red holds
+        inside. The core loop is all here: select a soldier, see where its action points can carry it,
+        click to move, click an enemy in your sights to fire. Line of sight is real — you can't shoot
+        through walls, so taking a doorway means giving up cover. Hit chance falls off with range.
+        Last squad standing wins.</p>
+      <p>Graphics are deliberately placeholder — coloured discs with a facing notch and a health bar.
+        The point of this build was to prove the mechanics feel right before drawing a single nice pixel.
+        Soldiers track which way they're facing, but the can't-see-behind-you rule doesn't bite yet;
+        it arrives with opportunity fire, where it earns its keep.</p>
+    </div>
+
+    <p style="color:var(--muted);font-size:13px">Next: doors and grenades, then a proper art pass — and
+      somewhere in there, an opponent that fights back.</p>
+  </article>
+</body>
+</html>

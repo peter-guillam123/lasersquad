@@ -1,0 +1,156 @@
+:root {
+  --bg: #14171c;
+  --panel: #1c2027;
+  --panel2: #232831;
+  --ink: #d6dbe2;
+  --muted: #8a93a0;
+  --line: #2c323c;
+  --blue: #4aa3ff;
+  --red: #ff5d5d;
+  --gold: #ffd166;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 22px; border-bottom: 1px solid var(--line);
+}
+.brand {
+  font-weight: 800; letter-spacing: 3px; font-size: 18px;
+}
+.brand .sub { color: var(--muted); font-weight: 500; letter-spacing: 1px; font-size: 12px; margin-left: 8px; }
+.topbar a { color: var(--muted); text-decoration: none; font-size: 13px; }
+.topbar a:hover { color: var(--ink); }
+
+.game {
+  display: flex; gap: 24px; padding: 24px;
+  align-items: flex-start; justify-content: center;
+  flex-wrap: wrap;
+}
+
+.board-wrap { display: flex; flex-direction: column; gap: 10px; }
+
+.turn-banner {
+  align-self: flex-start;
+  font-weight: 800; letter-spacing: 2px; font-size: 13px;
+  padding: 6px 14px; border-radius: 6px;
+}
+.turn-banner.blue { background: rgba(74,163,255,0.16); color: var(--blue); }
+.turn-banner.red  { background: rgba(255,93,93,0.16); color: var(--red); }
+.turn-banner.over { background: rgba(255,209,102,0.16); color: var(--gold); }
+
+.board-frame {
+  position: relative;
+  border: 1px solid var(--line); border-radius: 10px; overflow: hidden;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.45);
+  line-height: 0;
+}
+#board {
+  display: block;
+  width: min(70vw, 704px);
+  height: auto;
+  background: #0e1115;
+  cursor: pointer;
+}
+.map-name { color: var(--muted); font-size: 12px; margin: 0; letter-spacing: 0.5px; }
+
+.overlay {
+  position: absolute; inset: 0; display: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  background: rgba(10,12,16,0.78); backdrop-filter: blur(2px); line-height: 1.4;
+}
+.win-text { font-size: 30px; font-weight: 800; letter-spacing: 2px; }
+.win-text.blue { color: var(--blue); }
+.win-text.red { color: var(--red); }
+
+/* pass-the-device screen between turns — opaque, so neither player sees the other's view */
+.handoff {
+  position: absolute; inset: 0; display: none; z-index: 2;
+  flex-direction: column; align-items: center; justify-content: center;
+  background: #0e1115; line-height: 1.4;
+}
+.handoff-pass { color: var(--muted); letter-spacing: 2px; font-size: 13px; text-transform: uppercase; margin-bottom: 8px; }
+.handoff-team { font-size: 34px; font-weight: 800; letter-spacing: 3px; margin-bottom: 22px; }
+.handoff-team.blue { color: var(--blue); }
+.handoff-team.red { color: var(--red); }
+.handoff .btn { background: var(--gold); color: #2a2410; }
+
+/* ---- side panel ---- */
+.panel {
+  width: 280px; display: flex; flex-direction: column; gap: 16px;
+}
+
+.rosters { display: flex; gap: 14px; }
+.roster-block { flex: 1; }
+.roster-label { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
+.roster-label.blue { color: var(--blue); }
+.roster-label.red { color: var(--red); }
+.roster { display: flex; gap: 6px; margin-top: 6px; }
+.pip {
+  width: 30px; height: 30px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; cursor: pointer;
+  border: 2px solid transparent;
+}
+.pip.blue { background: rgba(74,163,255,0.18); color: var(--blue); }
+.pip.red  { background: rgba(255,93,93,0.18); color: var(--red); }
+.pip.sel  { border-color: var(--gold); }
+.pip.dead { opacity: 0.3; cursor: default; }
+.pip.unknown { opacity: 0.55; cursor: default; }
+
+.unit-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  padding: 14px; min-height: 96px;
+}
+.unit-card .hint { color: var(--muted); font-size: 13px; }
+.unit-name { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; margin-bottom: 10px; }
+.unit-name.blue { color: var(--blue); }
+.unit-name.red { color: var(--red); }
+.stat { display: flex; align-items: center; gap: 8px; margin: 7px 0; font-size: 12px; color: var(--muted); }
+.stat span { width: 46px; }
+.stat b { color: var(--ink); font-variant-numeric: tabular-nums; width: 42px; text-align: right; }
+.bar { flex: 1; height: 8px; background: #0e1115; border-radius: 5px; overflow: hidden; }
+.bar i { display: block; height: 100%; }
+.weapon { margin-top: 10px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 8px; }
+
+.btn {
+  border: none; border-radius: 8px; cursor: pointer;
+  font-weight: 700; font-size: 14px; padding: 11px 16px;
+  background: var(--panel2); color: var(--ink);
+}
+.btn:hover { background: #2b323d; }
+.end-turn { background: var(--gold); color: #2a2410; }
+.end-turn:hover { filter: brightness(1.05); }
+.end-turn:disabled { opacity: 0.4; cursor: default; }
+
+.log-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.log-title { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.log { height: 132px; overflow-y: auto; font-size: 12px; line-height: 1.6; color: var(--ink); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.log div { padding: 1px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+
+.legend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; font-size: 11px; color: var(--muted); }
+.legend span { display: flex; align-items: center; gap: 6px; }
+.legend .sw { width: 13px; height: 13px; border-radius: 3px; flex: none; border: 1px solid rgba(255,255,255,0.08); }
+.legend .mv-armed { background: rgba(74,163,255,0.55); }
+.legend .mv-spent { background: rgba(150,162,180,0.4); }
+.legend .th-enemy { background: rgba(255,93,93,0.5); }
+.legend .th-ally  { background: rgba(90,205,160,0.5); }
+
+.help { font-size: 12px; color: var(--muted); }
+.help b { color: var(--ink); display: block; margin-bottom: 6px; }
+.help ul { margin: 0; padding-left: 16px; }
+.help li { margin: 4px 0; }
+
+@media (max-width: 880px) {
+  #board { width: 92vw; }
+  .panel { width: 92vw; }
+}

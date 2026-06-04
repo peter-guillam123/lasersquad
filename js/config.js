@@ -1,0 +1,87 @@
+// config.js — all the tunable numbers live here, so balancing is one file to edit.
+window.LS = window.LS || {};
+
+LS.config = {
+  cols: 16,
+  rows: 12,
+  tile: 44,            // pixel size of one grid square
+
+  ap: {
+    max: 20,           // action points each unit gets per turn
+    moveOrtho: 2,      // cost to step N/E/S/W
+    moveDiag: 3,       // cost to step diagonally
+    turn: 0,           // turning is free in this build (auto-facing); a real cost lands with opportunity fire
+  },
+
+  combat: {
+    sightRange: 12,    // tiles a unit can see / shoot
+    arcHalfDeg: 100,   // forward vision half-angle — tracked now, enforced once opportunity fire exists
+    baseAccuracy: 0.95,
+    falloffPerTile: 0.05,
+    minHit: 0.10,
+    maxHit: 0.95,
+    coverPenalty: 0.25, // hit-chance cut when a wall shields the target on the shooter's side
+  },
+
+  anim: {
+    enabled: true,
+    msPerTile: 85,     // movement glide speed
+  },
+
+  colors: {
+    groundA: '#39463c',
+    groundB: '#35423a',
+    floorA:  '#4a443d',
+    floorB:  '#464039',
+    door:    '#5b5048',
+    wall:    '#21242a',
+    wallTop: '#2e333b',
+    grid:    'rgba(255,255,255,0.045)',
+    blue:    '#4aa3ff',
+    blueDark:'#1f5fa6',
+    red:     '#ff5d5d',
+    redDark: '#a62f2f',
+    reachBlue:'rgba(74,163,255,0.20)',   // move here AND keep enough AP to react (blue team)
+    reachRed: 'rgba(255,93,93,0.20)',    // ditto, red team
+    reachSpent:'rgba(150,162,180,0.13)', // reachable but you'd be too spent to reaction-fire
+    threatEnemy:'rgba(255,93,93,0.16)',  // tiles an ENEMY soldier can watch (danger)
+    threatAlly: 'rgba(90,205,160,0.15)', // tiles one of YOUR soldiers can watch (field of view)
+    select:  '#ffd166',
+    target:  '#ff5d5d',
+    path:    '#ffd166',
+    fog:     'rgba(8,10,14,0.52)',  // veil over tiles your squad can't currently see
+  },
+};
+
+// 8 facings, clockwise from North. Index stored on each unit.
+LS.DIRS = [
+  { dx: 0,  dy: -1 }, // 0 N
+  { dx: 1,  dy: -1 }, // 1 NE
+  { dx: 1,  dy: 0  }, // 2 E
+  { dx: 1,  dy: 1  }, // 3 SE
+  { dx: 0,  dy: 1  }, // 4 S
+  { dx: -1, dy: 1  }, // 5 SW
+  { dx: -1, dy: 0  }, // 6 W
+  { dx: -1, dy: -1 }, // 7 NW
+];
+
+// small shared helpers
+LS.util = {
+  clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
+  randInt: (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1)),
+  dirIndex(dx, dy) {
+    const sx = Math.sign(dx), sy = Math.sign(dy);
+    return LS.DIRS.findIndex(d => d.dx === sx && d.dy === sy);
+  },
+  // nearest of the 8 facings to an arbitrary vector (for the click-to-turn ring)
+  nearestDir(dx, dy) {
+    const dl = Math.hypot(dx, dy) || 1;
+    let best = 0, bestDot = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const d = LS.DIRS[i], l = Math.hypot(d.dx, d.dy);
+      const dot = (d.dx * dx + d.dy * dy) / (l * dl);
+      if (dot > bestDot) { bestDot = dot; best = i; }
+    }
+    return best;
+  },
+};

@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laser Squad</title>
+  <link rel="stylesheet" href="css/style.css?v=dev">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">LASER&nbsp;SQUAD<span class="sub">— vertical slice</span></div>
+    <nav><a href="about.html">About</a></nav>
+  </header>
+
+  <main class="game">
+    <section class="board-wrap">
+      <div id="turn-banner" class="turn-banner blue">BLUE turn</div>
+      <div class="board-frame">
+        <svg id="board" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div id="overlay" class="overlay">
+          <div class="win-text blue">—</div>
+          <button id="restart" class="btn">Play again</button>
+        </div>
+        <div id="handoff" class="handoff">
+          <div class="handoff-pass">Pass the device to</div>
+          <div class="handoff-team blue">BLUE</div>
+          <button id="handoff-btn" class="btn">I'm ready ▸</button>
+        </div>
+      </div>
+      <p class="map-name" id="map-name"></p>
+    </section>
+
+    <aside class="panel">
+      <div class="rosters">
+        <div class="roster-block">
+          <span class="roster-label blue">BLUE</span>
+          <div id="roster-blue" class="roster"></div>
+        </div>
+        <div class="roster-block">
+          <span class="roster-label red">RED</span>
+          <div id="roster-red" class="roster"></div>
+        </div>
+      </div>
+
+      <div id="unit-card" class="unit-card"></div>
+
+      <button id="end-turn" class="btn end-turn">End turn ▸</button>
+
+      <div class="log-wrap">
+        <div class="log-title">Combat log</div>
+        <div id="log" class="log"></div>
+      </div>
+
+      <div class="legend">
+        <span><i class="sw mv-armed"></i> move here &amp; still cover</span>
+        <span><i class="sw mv-spent"></i> move here (no AP to react)</span>
+        <span><i class="sw th-enemy"></i> an enemy is watching</span>
+        <span><i class="sw th-ally"></i> your soldier's view</span>
+      </div>
+
+      <div class="help">
+        <b>How to play</b>
+        <ul>
+          <li>Click a soldier to select. Highlighted tiles are within reach.</li>
+          <li>Click a tile to move (costs action points), or an enemy in a red reticle to fire.</li>
+          <li>Click an arrow in the ring around a selected soldier to turn it on the spot.</li>
+          <li>Hover any soldier to see the tiles it can watch. Walls give cover — the hit % drops.</li>
+          <li>Blue tiles let you move and still keep enough AP to react next turn; grey tiles spend you out.</li>
+          <li>Leave a soldier facing the right way with spare AP and it fires on enemies who cross its view.</li>
+          <li>End your turn to hand the screen to the other player.</li>
+        </ul>
+      </div>
+    </aside>
+  </main>
+
+  <script src="js/config.js?v=dev"></script>
+  <script src="js/level.js?v=dev"></script>
+  <script src="js/los.js?v=dev"></script>
+  <script src="js/game.js?v=dev"></script>
+  <script src="js/render.js?v=dev"></script>
+  <script src="js/ui.js?v=dev"></script>
+  <script src="js/input.js?v=dev"></script>
+  <script src="js/main.js?v=dev"></script>
+  <script>document.getElementById('map-name').textContent = LS.level.name;</script>
+</body>
+</html>
