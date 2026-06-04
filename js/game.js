@@ -30,6 +30,7 @@ LS.game = (function () {
       rubble: new Set(),          // tiles blown open by a blast (now passable + see/shoot through)
       craters: new Set(),         // tiles cratered by a blast (impassable holes)
       wallHp: new Map(),          // hidden durability per breakable wall: key -> {hp, max}
+      cam: { x: 0, y: 0 },        // camera top-left in world pixels (the scroll position)
     };
     // give every breakable wall a hidden, randomised durability
     for (let y = 0; y < LS.config.rows; y++)

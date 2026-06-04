@@ -4,10 +4,11 @@ LS.input = (function () {
 
   function pointFromEvent(e) {
     const rect = svg.getBoundingClientRect();
-    const { cols, rows, tile } = LS.config;
+    const { tile, view } = LS.config, cam = LS.state.cam;
+    // map screen pixels into world pixels through the camera window
     return {
-      px: (e.clientX - rect.left) * (cols * tile) / rect.width,
-      py: (e.clientY - rect.top) * (rows * tile) / rect.height,
+      px: cam.x + (e.clientX - rect.left) / rect.width * (view.cols * tile),
+      py: cam.y + (e.clientY - rect.top) / rect.height * (view.rows * tile),
     };
   }
 
@@ -78,6 +79,7 @@ LS.input = (function () {
     // select your own soldier
     if (clicked && clicked.team === LS.state.activeTeam) {
       LS.game.selectUnit(clicked.id);
+      LS.render.followUnit(clicked);
       LS.render.draw();
       return;
     }
@@ -224,6 +226,7 @@ LS.input = (function () {
     let i = 1;
     function stepOne() {
       if (i >= path.length) return endMove();
+      LS.render.followUnit(unit); // keep the mover on screen as it advances
       const from = path[i - 1], to = path[i];
       const dir = LS.util.dirIndex(to.x - from.x, to.y - from.y);
       const glide = () => LS.render.animateStep(unit, from, to, () => {
@@ -258,6 +261,7 @@ LS.input = (function () {
     LS.state.busy = false;
     const sel = LS.game.selected();
     if (sel && !sel.alive) LS.game.selectUnit(null);
+    else if (sel) LS.render.followUnit(sel);
     LS.game.refreshReach();
     LS.render.draw();
   }
@@ -278,6 +282,14 @@ LS.input = (function () {
         LS.render.drawHover(hoverDir >= 0 ? null : hoverTile.x, hoverDir >= 0 ? null : hoverTile.y);
       });
     }
+  }
+
+  function centerOnTeam(team) {
+    const us = LS.game.teamUnits(team);
+    if (!us.length) return;
+    const T = LS.config.tile;
+    const ax = us.reduce((s, u) => s + u.x, 0) / us.length, ay = us.reduce((s, u) => s + u.y, 0) / us.length;
+    LS.render.centerOn(ax * T + T / 2, ay * T + T / 2);
   }
 
   function init() {
@@ -310,7 +322,10 @@ LS.input = (function () {
       LS.render.draw();
     });
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); }
+      if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); return; }
+      const T = LS.config.tile;
+      const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
+      if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); }
     });
     // click a roster pip to select that soldier (if it's yours and your turn)
     document.querySelector('.rosters').addEventListener('click', (e) => {
@@ -319,16 +334,19 @@ LS.input = (function () {
       const u = LS.game.unitById(pip.dataset.id);
       if (u && u.alive && u.team === LS.state.activeTeam) {
         LS.game.selectUnit(u.id);
+        LS.render.followUnit(u);   // pan to it (it may be off-screen)
         LS.render.draw();
       }
     });
     document.getElementById('restart').addEventListener('click', () => {
       LS.game.newGame();
       LS.game.refreshReach();
+      LS.render.centerOn(LS.config.tile * 3, LS.config.tile * 9.5);
       LS.render.draw();
     });
     document.getElementById('handoff-btn').addEventListener('click', () => {
       LS.game.resumeTurn();
+      centerOnTeam(LS.state.activeTeam); // frame the squad whose turn it now is
       LS.render.draw();
     });
     document.getElementById('mute').addEventListener('click', () => {

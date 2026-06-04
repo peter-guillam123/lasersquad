@@ -2,9 +2,10 @@
 window.LS = window.LS || {};
 
 LS.config = {
-  cols: 16,
-  rows: 12,
+  cols: 26,            // map size (can exceed the viewport — the camera scrolls)
+  rows: 18,
   tile: 44,            // pixel size of one grid square
+  view: { cols: 16, rows: 12 }, // visible window onto the map (in tiles)
 
   ap: {
     max: 20,           // action points each unit gets per turn

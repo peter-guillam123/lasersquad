@@ -13,13 +13,30 @@ LS.render = (function () {
 
   function init() {
     svg = document.getElementById('board');
-    const { cols, rows, tile } = LS.config;
-    svg.setAttribute('viewBox', `0 0 ${cols * tile} ${rows * tile}`);
     // 'threat' sits above 'overlay' so enemy danger reads red over the blue move-field, not muddy purple.
     // 'fx' is topmost and is NOT cleared by draw(), so floating damage numbers survive a redraw.
     ['terrain', 'fog', 'overlay', 'threat', 'units', 'facing', 'hover', 'fx'].forEach(name => {
       layers[name] = el('g', { id: 'layer-' + name }, svg);
     });
+    setCamera(LS.state.cam.x, LS.state.cam.y); // the viewBox is a window onto the (possibly larger) map
+  }
+
+  // --- camera: the SVG viewBox is a window onto the world; panning just moves it (no re-render) ---
+  function setCamera(x, y) {
+    const T = LS.config.tile, V = LS.config.view;
+    const worldW = LS.config.cols * T, worldH = LS.config.rows * T, viewW = V.cols * T, viewH = V.rows * T;
+    const cx = worldW <= viewW ? (worldW - viewW) / 2 : Math.max(0, Math.min(x, worldW - viewW));
+    const cy = worldH <= viewH ? (worldH - viewH) / 2 : Math.max(0, Math.min(y, worldH - viewH));
+    LS.state.cam.x = cx; LS.state.cam.y = cy;
+    svg.setAttribute('viewBox', `${cx} ${cy} ${viewW} ${viewH}`);
+  }
+  function centerOn(wx, wy) { const T = LS.config.tile, V = LS.config.view; setCamera(wx - V.cols * T / 2, wy - V.rows * T / 2); }
+  function panBy(dx, dy) { setCamera(LS.state.cam.x + dx, LS.state.cam.y + dy); }
+  // recentre on a unit only if it's near/past the visible edge (keeps the action on screen without jitter)
+  function followUnit(u) {
+    const T = LS.config.tile, V = LS.config.view, cam = LS.state.cam;
+    const wx = u.x * T + T / 2, wy = u.y * T + T / 2, m = 2.5 * T;
+    if (wx < cam.x + m || wx > cam.x + V.cols * T - m || wy < cam.y + m || wy > cam.y + V.rows * T - m) centerOn(wx, wy);
   }
 
   function clear(g) { while (g.firstChild) g.removeChild(g.firstChild); }
@@ -718,5 +735,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, unitEls };
 })();
