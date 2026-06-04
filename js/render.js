@@ -262,6 +262,103 @@ LS.render = (function () {
     });
   }
 
+  // ---- soldier sprite: a chunky armoured "space marine", a distinct pose per facing ----
+  const SPRITE = { steel: '#23262e', steelLt: '#5a6470', steelHi: '#828c98', visor: '#0c1a2e' };
+  function teamPal(team) {
+    return team === 'blue'
+      ? { base: LS.config.colors.blue, dk: '#245a93', lt: '#bfe0ff', glow: '#7fd0ff' }
+      : { base: LS.config.colors.red, dk: '#9e3535', lt: '#ffc7c7', glow: '#ff9a9a' };
+  }
+  function mShadow(g, T) { el('ellipse', { cx: 0, cy: T * 0.4, rx: T * 0.3, ry: T * 0.09, fill: 'rgba(0,0,0,0.32)' }, g); }
+  function mBoots(g, T, t, spread) {
+    const dx = T * (spread || 0.12);
+    [-dx, dx].forEach(x => el('rect', { x: x - T * 0.075, y: T * 0.26, width: T * 0.15, height: T * 0.16, rx: T * 0.05, fill: SPRITE.steel, stroke: t.dk, 'stroke-width': 1.5 }, g));
+  }
+  function mGun(g, T, ox, oy, L, rot) {
+    const grp = el('g', { transform: `translate(${ox},${oy}) rotate(${rot || 0})` }, g);
+    el('rect', { x: -L * 0.42, y: -T * 0.04, width: L * 0.22, height: T * 0.12, rx: 2, fill: SPRITE.steelLt }, grp);   // stock
+    el('rect', { x: -L * 0.22, y: -T * 0.06, width: L * 0.4, height: T * 0.14, rx: 2, fill: SPRITE.steel }, grp);      // receiver
+    el('rect', { x: -L * 0.06, y: T * 0.05, width: L * 0.13, height: T * 0.18, rx: 2, fill: SPRITE.steel, transform: `rotate(12 0 ${T * 0.06})` }, grp); // magazine
+    el('rect', { x: 0, y: -T * 0.12, width: L * 0.09, height: T * 0.07, fill: SPRITE.steel }, grp);                    // sight
+    el('rect', { x: L * 0.12, y: -T * 0.028, width: L * 0.5, height: T * 0.06, rx: 1.5, fill: SPRITE.steel }, grp);    // barrel
+    el('rect', { x: L * 0.58, y: -T * 0.045, width: L * 0.1, height: T * 0.09, rx: 1.5, fill: SPRITE.steelHi }, grp);  // muzzle
+  }
+  function mHelmet(g, t, hx, hy, hr, dx, dy, dome, shine, nose) {
+    if (nose) {
+      const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, px = -uy, py = ux, nb = hr * 0.38;
+      el('polygon', { points: `${hx + ux * hr * 1.55},${hy + uy * hr * 1.55} ${hx + ux * hr * 0.6 + px * nb},${hy + uy * hr * 0.6 + py * nb} ${hx + ux * hr * 0.6 - px * nb},${hy + uy * hr * 0.6 - py * nb}`, fill: dome, stroke: t.dk, 'stroke-width': 1.5 }, g);
+    }
+    el('ellipse', { cx: hx, cy: hy, rx: hr, ry: hr * 0.92, fill: dome, stroke: t.dk, 'stroke-width': 2 }, g);
+    if (shine) el('circle', { cx: hx - hr * 0.34, cy: hy - hr * 0.42, r: hr * 0.2, fill: 'rgba(255,255,255,0.45)' }, g);
+  }
+  const MARINE_POSES = {
+    front(g, T, t) {
+      mShadow(g, T); mBoots(g, T, t);
+      el('rect', { x: -T * 0.16, y: T * 0.04, width: T * 0.32, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
+      el('rect', { x: -T * 0.2, y: -T * 0.16, width: T * 0.4, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+      el('rect', { x: -T * 0.1, y: -T * 0.1, width: T * 0.2, height: T * 0.18, rx: T * 0.04, fill: t.lt, opacity: 0.5 }, g);
+      [-1, 1].forEach(s => el('ellipse', { cx: s * T * 0.24, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g));
+      mGun(g, T, -T * 0.04, T * 0.07, T * 0.46, -7);
+      mHelmet(g, t, 0, -T * 0.29, T * 0.2, 0, 1, t.base, true, true);
+      el('rect', { x: -T * 0.15, y: -T * 0.27, width: T * 0.3, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor }, g);
+      el('rect', { x: -T * 0.09, y: -T * 0.24, width: T * 0.12, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
+    },
+    side(g, T, t) {
+      mShadow(g, T); mBoots(g, T, t, 0.1);
+      el('rect', { x: -T * 0.14, y: T * 0.04, width: T * 0.26, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
+      el('ellipse', { cx: -T * 0.22, cy: -T * 0.08, rx: T * 0.12, ry: T * 0.16, fill: t.dk }, g);
+      el('rect', { x: -T * 0.16, y: -T * 0.16, width: T * 0.32, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+      el('ellipse', { cx: T * 0.02, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);
+      mGun(g, T, T * 0.04, 0, T * 0.5, 0);
+      mHelmet(g, t, T * 0.04, -T * 0.29, T * 0.2, 1, 0, t.base, true, true);
+      el('rect', { x: T * 0.1, y: -T * 0.33, width: T * 0.2, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor }, g);
+      el('rect', { x: T * 0.18, y: -T * 0.3, width: T * 0.08, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
+    },
+    back(g, T, t) {
+      mShadow(g, T); mBoots(g, T, t);
+      el('rect', { x: -T * 0.16, y: T * 0.04, width: T * 0.32, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
+      el('rect', { x: -T * 0.2, y: -T * 0.16, width: T * 0.4, height: T * 0.3, rx: T * 0.1, fill: t.dk, stroke: t.dk, 'stroke-width': 2 }, g);
+      el('rect', { x: -T * 0.13, y: -T * 0.12, width: T * 0.26, height: T * 0.24, rx: T * 0.06, fill: SPRITE.steel }, g);
+      el('rect', { x: -T * 0.08, y: -T * 0.08, width: T * 0.16, height: T * 0.07, rx: 2, fill: t.glow, opacity: 0.5 }, g);
+      [-1, 1].forEach(s => el('ellipse', { cx: s * T * 0.24, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g));
+      mHelmet(g, t, 0, -T * 0.29, T * 0.2, 0, -1, t.dk, false, false);
+      el('circle', { cx: 0, cy: -T * 0.3, r: T * 0.07, fill: SPRITE.steel }, g);
+    },
+    threeqFront(g, T, t) {
+      mShadow(g, T); mBoots(g, T, t, 0.11);
+      el('rect', { x: -T * 0.15, y: T * 0.04, width: T * 0.3, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
+      el('ellipse', { cx: -T * 0.2, cy: -T * 0.1, rx: T * 0.11, ry: T * 0.14, fill: t.dk }, g);
+      el('rect', { x: -T * 0.18, y: -T * 0.16, width: T * 0.36, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+      el('rect', { x: -T * 0.06, y: -T * 0.1, width: T * 0.18, height: T * 0.16, rx: T * 0.04, fill: t.lt, opacity: 0.45 }, g);
+      el('ellipse', { cx: T * 0.18, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);
+      mGun(g, T, -T * 0.02, T * 0.06, T * 0.48, 26);
+      mHelmet(g, t, T * 0.05, -T * 0.29, T * 0.2, 0.7, 0.7, t.base, true, true);
+      el('rect', { x: -T * 0.02, y: -T * 0.31, width: T * 0.26, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor, transform: `rotate(20 ${T * 0.05} ${-T * 0.25})` }, g);
+      el('rect', { x: T * 0.07, y: -T * 0.27, width: T * 0.09, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
+    },
+    backThreeq(g, T, t) {
+      mShadow(g, T); mBoots(g, T, t, 0.11);
+      el('rect', { x: -T * 0.15, y: T * 0.04, width: T * 0.3, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
+      el('rect', { x: -T * 0.18, y: -T * 0.16, width: T * 0.36, height: T * 0.3, rx: T * 0.1, fill: t.dk, stroke: t.dk, 'stroke-width': 2 }, g);
+      el('rect', { x: -T * 0.14, y: -T * 0.12, width: T * 0.22, height: T * 0.22, rx: T * 0.05, fill: SPRITE.steel }, g); // backpack (far side)
+      el('ellipse', { cx: T * 0.2, cy: -T * 0.12, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);   // near pauldron
+      el('ellipse', { cx: -T * 0.22, cy: -T * 0.13, rx: T * 0.1, ry: T * 0.12, fill: t.dk }, g);  // far pauldron
+      el('rect', { x: T * 0.04, y: -T * 0.04, width: T * 0.34, height: T * 0.08, rx: 1.5, fill: SPRITE.steel, transform: `rotate(-22 ${T * 0.1} 0)` }, g); // gun tip
+      mHelmet(g, t, T * 0.05, -T * 0.29, T * 0.2, 0, -1, t.dk, false, false);
+      el('circle', { cx: T * 0.02, cy: -T * 0.3, r: T * 0.06, fill: SPRITE.steel }, g);
+    },
+  };
+  // facing index (0=N clockwise) -> [pose, mirror-horizontally]
+  const FACING_POSE = [
+    ['back', false], ['backThreeq', false], ['side', false], ['threeqFront', false],
+    ['front', false], ['threeqFront', true], ['side', true], ['backThreeq', true],
+  ];
+  function drawMarine(parent, T, facing, team) {
+    const [pose, mirror] = FACING_POSE[facing] || ['front', false];
+    const inner = el('g', mirror ? { transform: 'scale(-1,1)' } : {}, parent);
+    MARINE_POSES[pose](inner, T, teamPal(team));
+  }
+
   function drawUnits(T, C) {
     clear(layers.units);
     for (const id in unitEls) delete unitEls[id];
@@ -271,23 +368,11 @@ LS.render = (function () {
       const cx = u.x * T + T / 2, cy = u.y * T + T / 2;
       const g = el('g', { transform: `translate(${cx},${cy})` }, layers.units);
       unitEls[u.id] = g;
-      const body = u.team === 'blue' ? C.blue : C.red;
-      const ring = u.team === 'blue' ? C.blueDark : C.redDark;
-
       if (LS.state.selectedId === u.id) {
-        el('circle', { cx: 0, cy: 0, r: T * 0.44, fill: 'none', stroke: C.select, 'stroke-width': 2.5, 'stroke-dasharray': '5 4' }, g);
+        el('circle', { cx: 0, cy: 0, r: T * 0.47, fill: 'none', stroke: C.select, 'stroke-width': 2.5, 'stroke-dasharray': '5 4' }, g);
       }
-      el('circle', { cx: 0, cy: 0, r: T * 0.32, fill: body, stroke: ring, 'stroke-width': 2 }, g);
-
-      // facing notch
-      const f = LS.DIRS[u.facing];
-      const ang = Math.atan2(f.dy, f.dx) * 180 / Math.PI;
-      const notch = el('g', { transform: `rotate(${ang})` }, g);
-      const r = T * 0.32;
-      el('polygon', { points: `${r - 2},0 ${r + 6},-5 ${r + 6},5`, fill: '#fff', opacity: 0.92 }, notch);
-
-      // health bar above the unit
-      const bw = T * 0.5, bh = 4, bx = -bw / 2, by = -T * 0.46;
+      drawMarine(g, T, u.facing, u.team);
+      const bw = T * 0.5, bh = 4, bx = -bw / 2, by = -T * 0.56;
       el('rect', { x: bx, y: by, width: bw, height: bh, rx: 2, fill: 'rgba(0,0,0,0.55)' }, g);
       el('rect', { x: bx, y: by, width: bw * (u.hp / u.maxHp), height: bh, rx: 2, fill: u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a' }, g);
     });
