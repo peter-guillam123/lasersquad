@@ -52,6 +52,9 @@ LS.ui = (function () {
     }
 
     document.getElementById('end-turn').disabled = s.over || s.busy;
+
+    const mb = document.getElementById('mute');
+    if (mb) mb.textContent = 'Sound: ' + (LS.sound.isMuted() ? 'off' : 'on');
   }
 
   function renderRoster(elId, team) {

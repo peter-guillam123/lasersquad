@@ -15,8 +15,9 @@ LS.render = (function () {
     svg = document.getElementById('board');
     const { cols, rows, tile } = LS.config;
     svg.setAttribute('viewBox', `0 0 ${cols * tile} ${rows * tile}`);
-    // 'threat' sits above 'overlay' so enemy danger reads red over the blue move-field, not muddy purple
-    ['terrain', 'fog', 'overlay', 'threat', 'units', 'facing', 'hover'].forEach(name => {
+    // 'threat' sits above 'overlay' so enemy danger reads red over the blue move-field, not muddy purple.
+    // 'fx' is topmost and is NOT cleared by draw(), so floating damage numbers survive a redraw.
+    ['terrain', 'fog', 'overlay', 'threat', 'units', 'facing', 'hover', 'fx'].forEach(name => {
       layers[name] = el('g', { id: 'layer-' + name }, svg);
     });
   }
@@ -241,18 +242,102 @@ LS.render = (function () {
     requestAnimationFrame(f);
   }
 
-  // a reaction-fire flash: tracer line + ring + "!" over the shooter, then done() after a beat
-  function tracer(shooter, target, done) {
+  // --- shot feedback: muzzle flash, travelling bolt, impact, floating damage/miss ---
+  function shotFx(shooter, target, result, done) {
+    LS.sound.play('fire');
     if (!LS.config.anim.enabled) { done && done(); return; }
     const T = LS.config.tile, C = LS.config.colors;
-    const x1 = shooter.x * T + T / 2, y1 = shooter.y * T + T / 2;
-    const x2 = target.x * T + T / 2, y2 = target.y * T + T / 2;
-    el('line', { x1, y1, x2, y2, stroke: '#ffe08a', 'stroke-width': 2.5, opacity: 0.95, 'stroke-linecap': 'round' }, layers.hover);
-    el('circle', { cx: x1, cy: y1, r: T * 0.42, fill: 'none', stroke: C.target, 'stroke-width': 3, opacity: 0.9 }, layers.hover);
-    const t = el('text', { x: x1, y: y1 - T * 0.5, fill: C.target, 'font-size': 16, 'font-weight': 800, 'text-anchor': 'middle', 'font-family': 'monospace' }, layers.hover);
-    t.textContent = '!';
-    setTimeout(() => { done && done(); }, 200);
+    const sx = shooter.x * T + T / 2, sy = shooter.y * T + T / 2;
+    const tcx = target.x * T + T / 2, tcy = target.y * T + T / 2;
+
+    // a miss sails wide of the target — and stops dead if it meets a wall on the way
+    let ex = tcx, ey = tcy, hitWall = false;
+    if (!result.hit) {
+      const ang = Math.atan2(tcy - sy, tcx - sx) + ((target.x + target.y) % 2 ? 0.17 : -0.17);
+      const maxD = Math.hypot(tcx - sx, tcy - sy) + T * 1.5;
+      const end = raycastToWall(sx, sy, ang, maxD);
+      ex = end.x; ey = end.y; hitWall = end.wall;
+    }
+
+    fade(el('circle', { cx: sx, cy: sy, r: T * 0.16, fill: '#ffe9a8', opacity: 0.95 }, layers.fx), 180);
+
+    const bolt = el('line', { x1: sx, y1: sy, x2: sx, y2: sy, stroke: '#ffe08a', 'stroke-width': 3, 'stroke-linecap': 'round' }, layers.fx);
+    const dur = 150; let start = null;
+    function fly(ts) {
+      if (start === null) start = ts;
+      let p = (ts - start) / dur; if (p > 1) p = 1;
+      const tailP = Math.max(0, p - 0.25);
+      bolt.setAttribute('x1', sx + (ex - sx) * tailP); bolt.setAttribute('y1', sy + (ey - sy) * tailP);
+      bolt.setAttribute('x2', sx + (ex - sx) * p); bolt.setAttribute('y2', sy + (ey - sy) * p);
+      if (p < 1) requestAnimationFrame(fly); else { bolt.remove(); impact(); }
+    }
+    requestAnimationFrame(fly);
+
+    function impact() {
+      if (result.hit) {
+        LS.sound.play(result.killed ? 'down' : 'hit');
+        expand(el('circle', { cx: tcx, cy: tcy, r: T * 0.1, fill: 'none', stroke: C.target, 'stroke-width': 3 }, layers.fx), T * 0.5, 280);
+        floatText(`-${result.dmg}`, tcx, tcy - T * 0.2, C.target);
+        if (result.killed) floatText('DOWN', tcx, tcy - T * 0.5, C.select, 1000);
+      } else {
+        LS.sound.play('miss');
+        if (hitWall) expand(el('circle', { cx: ex, cy: ey, r: T * 0.06, fill: 'none', stroke: '#9aa3af', 'stroke-width': 2.5 }, layers.fx), T * 0.28, 220);
+        floatText('miss', ex, ey, '#9aa3af', 600);
+      }
+      setTimeout(() => done && done(), result.hit ? 200 : 120);
+    }
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, tracer, unitEls };
+  // march a ray from (sx,sy) along ang until it enters a wall tile or leaves the map
+  function raycastToWall(sx, sy, ang, maxD) {
+    const T = LS.config.tile, step = T * 0.2;
+    const cx = Math.cos(ang), cy = Math.sin(ang);
+    for (let d = step; d <= maxD; d += step) {
+      const px = sx + cx * d, py = sy + cy * d;
+      const tx = Math.floor(px / T), ty = Math.floor(py / T);
+      if (tx < 0 || ty < 0 || tx >= LS.config.cols || ty >= LS.config.rows)
+        return { x: sx + cx * (d - step), y: sy + cy * (d - step), wall: false };
+      if (LS.los.isWall(tx, ty)) return { x: px, y: py, wall: true };
+    }
+    return { x: sx + cx * maxD, y: sy + cy * maxD, wall: false };
+  }
+
+  function fade(elem, ms) {
+    let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts;
+      const p = Math.min(1, (ts - start) / ms);
+      elem.setAttribute('opacity', String(1 - p));
+      if (p < 1) requestAnimationFrame(f); else elem.remove();
+    });
+  }
+
+  function expand(circle, toR, ms) {
+    const fromR = parseFloat(circle.getAttribute('r')); let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts;
+      const p = Math.min(1, (ts - start) / ms);
+      circle.setAttribute('r', fromR + (toR - fromR) * p);
+      circle.setAttribute('opacity', String(0.9 * (1 - p)));
+      if (p < 1) requestAnimationFrame(f); else circle.remove();
+    });
+  }
+
+  function floatText(text, x, y, color, ms = 850) {
+    const t = el('text', {
+      x, y, fill: color, 'font-size': 15, 'font-weight': 800, 'text-anchor': 'middle',
+      'font-family': 'ui-monospace, monospace', stroke: 'rgba(0,0,0,0.6)', 'stroke-width': 3, 'paint-order': 'stroke',
+    }, layers.fx);
+    t.textContent = text;
+    let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts;
+      const p = Math.min(1, (ts - start) / ms);
+      t.setAttribute('y', y - 24 * p);
+      t.setAttribute('opacity', String(1 - p));
+      if (p < 1) requestAnimationFrame(f); else t.remove();
+    });
+  }
+
+  return { init, draw, drawHover, drawFacing, animateStep, shotFx, unitEls };
 })();

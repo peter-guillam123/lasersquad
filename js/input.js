@@ -31,6 +31,7 @@ LS.input = (function () {
   }
 
   function onClick(e) {
+    LS.sound.ensure(); // first real click unlocks audio (browser autoplay rules)
     if (LS.state.busy || LS.state.over || LS.state.handoff) return;
     const { px, py } = pointFromEvent(e);
     const rd = ringDirAt(px, py);
@@ -56,9 +57,7 @@ LS.input = (function () {
     if (sel) {
       // fire on an enemy
       if (clicked && clicked.team !== sel.team) {
-        const res = LS.game.fire(sel, clicked);
-        if (!res.ok) LS.game.log(res.reason);
-        LS.render.draw();
+        performShot(sel, clicked);
         return;
       }
       // empty tile: move if reachable; out-of-range clicks do nothing (turning is via the ring)
@@ -75,6 +74,20 @@ LS.input = (function () {
     // clicked empty space / enemy with nothing selected → clear selection
     LS.game.selectUnit(null);
     LS.render.draw();
+  }
+
+  // a player-initiated shot: resolve, then play the feedback, then redraw
+  function performShot(shooter, target, opts) {
+    const res = LS.game.fire(shooter, target, opts || {});
+    if (!res.ok) { LS.game.log(res.reason); LS.render.draw(); return; }
+    LS.state.busy = true;
+    LS.ui.update();
+    LS.render.shotFx(shooter, target, res, () => {
+      LS.state.busy = false;
+      const s = LS.game.selected();
+      if (s && !s.alive) LS.game.selectUnit(null);
+      LS.render.draw();
+    });
   }
 
   // walk a path one tile at a time, halting if a reaction shot lands (halt-on-spot)
@@ -101,10 +114,10 @@ LS.input = (function () {
       if (j >= reactors.length || !mover.alive) return done();
       const r = reactors[j++];
       if (r.ap < LS.level.weapon.fireCost || !LS.los.canSee(r, mover.x, mover.y)) return next();
-      LS.render.tracer(r, mover, () => {
-        LS.game.fire(r, mover, { reaction: true });
+      const res = LS.game.fire(r, mover, { reaction: true });
+      LS.render.shotFx(r, mover, res, () => {
         LS.render.draw();
-        if (LS.config.anim.enabled) setTimeout(next, 240); else next();
+        if (LS.config.anim.enabled) setTimeout(next, 180); else next();
       });
     }
     next();
@@ -164,6 +177,10 @@ LS.input = (function () {
     document.getElementById('handoff-btn').addEventListener('click', () => {
       LS.game.resumeTurn();
       LS.render.draw();
+    });
+    document.getElementById('mute').addEventListener('click', () => {
+      LS.sound.toggle();
+      LS.ui.update();
     });
   }
 
