@@ -27,7 +27,17 @@ LS.game = (function () {
       windowsSmashed: new Set(),  // keys of windows broken (default: all intact)
       liveGrenades: [],           // {x,y,team} thrown this turn, detonate at end of turn (cook)
       throwMode: null,            // unit id currently aiming a grenade, or null
+      rubble: new Set(),          // tiles blown open by a blast (now passable + see/shoot through)
+      craters: new Set(),         // tiles cratered by a blast (impassable holes)
+      wallHp: new Map(),          // hidden durability per breakable wall: key -> {hp, max}
     };
+    // give every breakable wall a hidden, randomised durability
+    for (let y = 0; y < LS.config.rows; y++)
+      for (let x = 0; x < LS.config.cols; x++)
+        if (LS.level.map[y][x] === 'x') {
+          const hp = randInt(LS.config.grenade.wallHpMin, LS.config.grenade.wallHpMax);
+          LS.state.wallHp.set(key(x, y), { hp, max: hp });
+        }
     observe();
     log('Blue squad, move out. Click one of your soldiers.');
     return LS.state;
@@ -225,7 +235,7 @@ LS.game = (function () {
   // Is the target shielded by a wall on the side the shot comes from?
   function inCoverFrom(tx, ty, fx, fy) {
     const d = LS.DIRS[LS.util.nearestDir(fx - tx, fy - ty)]; // step from target toward shooter
-    return LS.los.isWall(tx + d.dx, ty + d.dy);
+    return LS.los.givesCover(tx + d.dx, ty + d.dy); // reinforced or intact breakable wall
   }
 
   // single source of truth for hit chance, so the hover % always matches the real shot
@@ -300,20 +310,41 @@ LS.game = (function () {
 
   // detonate one grenade: apply falloff damage to every unit in the blast (friendly fire included)
   function detonateGrenade(g) {
+    const G = LS.config.grenade;
     const hits = [];
+    let wallsDown = 0, wallsHit = 0;
     blastTiles(g.x, g.y).forEach(({ x, y, d }) => {
+      const c = LS.los.tileChar(x, y), kk = key(x, y);
       // the blast blows out any intact window it reaches (it already passes through glass to hit beyond)
-      if (LS.los.isWindow(x, y) && !LS.los.windowSmashed(x, y)) LS.state.windowsSmashed.add(key(x, y));
+      if (c === 'W' && !LS.los.windowSmashed(x, y)) LS.state.windowsSmashed.add(kk);
+      // a destructible door is flimsy: a close blast blows it apart
+      if (c === 'D' && d <= G.wallBreakRadius && !LS.state.rubble.has(kk)) LS.state.rubble.add(kk);
+      // a breakable wall takes blast damage off its hidden HP; it only collapses once that runs out
+      if (c === 'x' && !LS.state.rubble.has(kk)) {
+        const wd = Math.max(0, Math.round(G.wallDmgCenter - d * G.wallDmgFalloff));
+        if (wd > 0) {
+          const w = LS.state.wallHp.get(kk) || { hp: G.wallHpMax, max: G.wallHpMax };
+          w.hp -= wd; LS.state.wallHp.set(kk, w);
+          if (w.hp <= 0) { LS.state.rubble.add(kk); wallsDown++; } else wallsHit++;
+        }
+      }
       const u = unitAt(x, y);
       if (!u) return;
-      const dmg = Math.max(1, Math.round(LS.config.grenade.dmgCenter - d * LS.config.grenade.dmgFalloff));
+      const dmg = Math.max(1, Math.round(G.dmgCenter - d * G.dmgFalloff));
       u.hp = Math.max(0, u.hp - dmg);
       const killed = u.hp === 0;
       if (killed) u.alive = false;
       hits.push({ x, y, dmg, killed, name: u.name });
     });
-    if (hits.length) log(`Grenade: ${hits.map(h => `${h.name} -${h.dmg}${h.killed ? ' (down)' : ''}`).join(', ')}`);
-    else log('Grenade detonates — no one in the blast.');
+    // chance the tile it lands on becomes an impassable crater (open ground only)
+    const ec = LS.los.tileChar(g.x, g.y);
+    if ((ec === '.' || ec === '_') && !LS.state.craters.has(key(g.x, g.y)) && Math.random() < G.craterChance)
+      LS.state.craters.add(key(g.x, g.y));
+    const parts = [];
+    if (hits.length) parts.push(hits.map(h => `${h.name} -${h.dmg}${h.killed ? ' (down)' : ''}`).join(', '));
+    if (wallsDown) parts.push(wallsDown > 1 ? `${wallsDown} walls blown open` : 'a wall blown open');
+    else if (wallsHit) parts.push('a wall holds');
+    log(parts.length ? `Grenade: ${parts.join('; ')}` : 'Grenade detonates.');
     return hits;
   }
 

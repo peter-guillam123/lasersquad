@@ -31,6 +31,14 @@ LS.config = {
     radius: 2,        // blast reaches this far (Manhattan diamond); walls stop it
     dmgCenter: 8,     // damage at the epicentre
     dmgFalloff: 2.5,  // damage lost per tile from the centre
+    wallBreakRadius: 1, // a destructible DOOR within this many tiles is blown apart
+    craterChance: 0.35, // chance the tile a grenade lands on becomes an impassable crater
+    // breakable walls have hidden, randomised hit points and take blast damage by distance,
+    // so a wall might survive a hit and need another. (Doors stay flimsy; people-damage stays fixed.)
+    wallHpMin: 3,
+    wallHpMax: 9,
+    wallDmgCenter: 12,
+    wallDmgFalloff: 4,
   },
 
   anim: {
@@ -46,8 +54,15 @@ LS.config = {
     door:    '#5b5048',
     wall:    '#21242a',
     wallTop: '#2e333b',
-    doorLeaf:'#856a4b',   // a closed door
+    wallWeak:'#3a3d45',   // breakable wall (reads lighter than the reinforced one)
+    crack:   'rgba(16,17,21,0.6)', // hairline crack on a breakable wall
+    rubble:  '#6b5d49',   // debris where a wall/door was blown open (passable)
+    crater:  '#070809',   // blast crater (impassable hole)
+    craterEdge:'rgba(0,0,0,0.5)',
+    doorLeaf:'#856a4b',   // a closed wooden door
     doorFrame:'#4a3f33',  // door posts / frame
+    doorSteel:'#5e6772',  // a reinforced (blast-proof) door
+    doorSteelFrame:'#3a4048',
     glass:   'rgba(140,195,225,0.30)',  // intact window pane
     glassEdge:'rgba(175,215,240,0.75)', // window mullions / frame
     grid:    'rgba(255,255,255,0.045)',

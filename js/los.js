@@ -7,33 +7,43 @@ LS.los = (function () {
     if (x < 0 || y < 0 || x >= LS.config.cols || y >= LS.config.rows) return '#';
     return LS.level.map[y][x];
   }
-  function isWall(x, y) { return tileChar(x, y) === '#'; }
-  function isDoor(x, y) { return tileChar(x, y) === 'D'; }
+  function rubbled(x, y) { return !!(LS.state && LS.state.rubble && LS.state.rubble.has(k(x, y))); }
+  function cratered(x, y) { return !!(LS.state && LS.state.craters && LS.state.craters.has(k(x, y))); }
+  function isWall(x, y) { return tileChar(x, y) === '#'; }          // reinforced wall
+  function isBreakable(x, y) { return tileChar(x, y) === 'x' && !rubbled(x, y); }
+  function isDoor(x, y) { const c = tileChar(x, y); return !rubbled(x, y) && (c === 'D' || c === 'R'); }
+  function isReinforcedDoor(x, y) { return tileChar(x, y) === 'R'; }
   function isWindow(x, y) { return tileChar(x, y) === 'W'; }
-  function isBarrier(x, y) { const c = tileChar(x, y); return c === '#' || c === 'D' || c === 'W'; }
+  function isBarrier(x, y) { const c = tileChar(x, y); return c === '#' || c === 'x' || c === 'D' || c === 'R' || c === 'W'; }
   function doorOpen(x, y) { return !!(LS.state && LS.state.doorsOpen && LS.state.doorsOpen.has(k(x, y))); }
   function windowSmashed(x, y) { return !!(LS.state && LS.state.windowsSmashed && LS.state.windowsSmashed.has(k(x, y))); }
+  // a wall (reinforced or intact breakable) that shields a target — used for cover
+  function givesCover(x, y) { if (rubbled(x, y)) return false; const c = tileChar(x, y); return c === '#' || c === 'x'; }
 
-  // walls and closed doors block sight; windows (intact or smashed) are see-through
+  // walls and closed doors block sight; windows are see-through; rubble and craters don't block sight
   function blocksSight(x, y) {
+    if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
-    if (c === '#') return true;
-    if (c === 'D') return !doorOpen(x, y);
+    if (c === '#' || c === 'x') return true;
+    if (c === 'D' || c === 'R') return !doorOpen(x, y);
     return false;
   }
-  // walls, closed doors AND intact windows block a shot; a smashed window doesn't
+  // as sight, plus intact windows stop a shot
   function blocksShot(x, y) {
+    if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
-    if (c === '#') return true;
-    if (c === 'D') return !doorOpen(x, y);
+    if (c === '#' || c === 'x') return true;
+    if (c === 'D' || c === 'R') return !doorOpen(x, y);
     if (c === 'W') return !windowSmashed(x, y);
     return false;
   }
-  // anything that stops a body: walls, any window, a closed door
+  // anything that stops a body: walls, windows, closed doors, AND craters (a hole you can't cross)
   function blocksMove(x, y) {
+    if (cratered(x, y)) return true;
+    if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
-    if (c === '#' || c === 'W') return true;
-    if (c === 'D') return !doorOpen(x, y);
+    if (c === '#' || c === 'x' || c === 'W') return true;
+    if (c === 'D' || c === 'R') return !doorOpen(x, y);
     return false;
   }
 
@@ -90,7 +100,8 @@ LS.los = (function () {
   }
 
   return {
-    tileChar, isWall, isDoor, isWindow, isBarrier, doorOpen, windowSmashed,
+    tileChar, isWall, isBreakable, isDoor, isReinforcedDoor, isWindow, isBarrier,
+    doorOpen, windowSmashed, rubbled, cratered, givesCover,
     blocksSight, blocksShot, blocksMove, lineClear, dist, canTarget, canSee, firstShotBlocker,
   };
 })();

@@ -87,42 +87,86 @@ LS.render = (function () {
     for (let y = 0; y < LS.config.rows; y++) {
       for (let x = 0; x < LS.config.cols; x++) {
         const ch = LS.level.map[y][x];
+        const rubbled = LS.los.rubbled(x, y), cratered = LS.los.cratered(x, y);
+        const floorLike = ch === '_' || ch === 'D' || ch === 'R';
         let fill;
-        if (ch === '#') fill = C.wall;
-        else if (ch === '_') fill = (x + y) % 2 ? C.floorB : C.floorA;
-        else if (ch === 'D') fill = (x + y) % 2 ? C.floorB : C.floorA; // door threshold reads as floor
-        else if (ch === 'W') fill = C.wall;                            // a window sits in a wall
-        else fill = (x + y) % 2 ? C.groundB : C.groundA;
+        if (rubbled) fill = (x + y) % 2 ? C.floorB : C.floorA;     // blown open -> floor
+        else if (ch === '#') fill = C.wall;
+        else if (ch === 'x') fill = C.wallWeak;
+        else if (ch === 'W') fill = C.wall;                        // a window sits in a wall
+        else if (floorLike) fill = (x + y) % 2 ? C.floorB : C.floorA;
+        else fill = (x + y) % 2 ? C.groundB : C.groundA;           // '.' ground
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
-        if (ch === '#') el('rect', { x: x * T, y: y * T, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
-        if (ch === 'D') drawDoor(x, y, T, C);
-        if (ch === 'W') drawWindow(x, y, T, C);
+
+        if (rubbled) drawRubble(x, y, T, C);
+        else if (cratered) drawCrater(x, y, T, C);
+        else if (ch === '#') el('rect', { x: x * T, y: y * T, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
+        else if (ch === 'x') drawBreakableWall(x, y, T, C);
+        else if (ch === 'D' || ch === 'R') drawDoor(x, y, T, C, ch === 'R');
+        else if (ch === 'W') drawWindow(x, y, T, C);
+
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'none', stroke: C.grid, 'stroke-width': 1 }, layers.terrain);
       }
     }
   }
 
+  function drawBreakableWall(x, y, T, C) {
+    const cx = x * T, cy = y * T;
+    el('rect', { x: cx, y: cy, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
+    el('polyline', { points: `${cx + T * 0.3},${cy} ${cx + T * 0.44},${cy + T * 0.4} ${cx + T * 0.34},${cy + T * 0.72} ${cx + T * 0.46},${cy + T}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.5 }, layers.terrain);
+    el('polyline', { points: `${cx + T * 0.72},${cy + T * 0.12} ${cx + T * 0.6},${cy + T * 0.5} ${cx + T * 0.74},${cy + T * 0.85}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.2 }, layers.terrain);
+    // a wall that's taken a blast but held looks scorched and more cracked (HP itself stays hidden)
+    const w = LS.state.wallHp && LS.state.wallHp.get(LS.game.key(x, y));
+    if (w && w.hp < w.max) {
+      el('rect', { x: cx, y: cy, width: T, height: T, fill: 'rgba(0,0,0,0.22)' }, layers.terrain);
+      el('polyline', { points: `${cx + T * 0.15},${cy + T * 0.3} ${cx + T * 0.5},${cy + T * 0.55} ${cx + T * 0.85},${cy + T * 0.4}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.6 }, layers.terrain);
+    }
+  }
+
+  function drawRubble(x, y, T, C) {
+    const cx = x * T, cy = y * T;
+    [[0.22, 0.28], [0.56, 0.4], [0.38, 0.66], [0.72, 0.7], [0.3, 0.52]].forEach(([fx, fy], i) => {
+      const s = T * (0.1 + (i % 3) * 0.03);
+      el('rect', { x: cx + T * fx, y: cy + T * fy, width: s, height: s, rx: 1.5, fill: C.rubble, opacity: 0.8 }, layers.terrain);
+    });
+  }
+
+  function drawCrater(x, y, T, C) {
+    const cx = x * T + T / 2, cy = y * T + T / 2;
+    el('circle', { cx, cy, r: T * 0.42, fill: C.crater, stroke: C.craterEdge, 'stroke-width': 2 }, layers.terrain);
+    el('circle', { cx, cy, r: T * 0.24, fill: '#000', opacity: 0.5 }, layers.terrain);
+  }
+
   // doors/windows orient along the wall they sit in (barriers above & below => vertical wall run)
-  function drawDoor(x, y, T, C) {
+  function drawDoor(x, y, T, C, reinforced) {
     const open = LS.los.doorOpen(x, y);
     const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1);
+    const leaf = reinforced ? C.doorSteel : C.doorLeaf;
+    const frame = reinforced ? C.doorSteelFrame : C.doorFrame;
     const cx = x * T, cy = y * T;
     if (open) {
       if (vertical) {
-        el('rect', { x: cx + T * 0.40, y: cy, width: T * 0.20, height: T * 0.12, fill: C.doorFrame }, layers.terrain);
-        el('rect', { x: cx + T * 0.40, y: cy + T * 0.88, width: T * 0.20, height: T * 0.12, fill: C.doorFrame }, layers.terrain);
-        el('rect', { x: cx + T * 0.52, y: cy + T * 0.07, width: T * 0.40, height: T * 0.12, rx: 2, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 1 }, layers.terrain);
+        el('rect', { x: cx + T * 0.40, y: cy, width: T * 0.20, height: T * 0.12, fill: frame }, layers.terrain);
+        el('rect', { x: cx + T * 0.40, y: cy + T * 0.88, width: T * 0.20, height: T * 0.12, fill: frame }, layers.terrain);
+        el('rect', { x: cx + T * 0.52, y: cy + T * 0.07, width: T * 0.40, height: T * 0.12, rx: 2, fill: leaf, stroke: frame, 'stroke-width': 1 }, layers.terrain);
       } else {
-        el('rect', { x: cx, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: C.doorFrame }, layers.terrain);
-        el('rect', { x: cx + T * 0.88, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: C.doorFrame }, layers.terrain);
-        el('rect', { x: cx + T * 0.07, y: cy + T * 0.52, width: T * 0.12, height: T * 0.40, rx: 2, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 1 }, layers.terrain);
+        el('rect', { x: cx, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: frame }, layers.terrain);
+        el('rect', { x: cx + T * 0.88, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: frame }, layers.terrain);
+        el('rect', { x: cx + T * 0.07, y: cy + T * 0.52, width: T * 0.12, height: T * 0.40, rx: 2, fill: leaf, stroke: frame, 'stroke-width': 1 }, layers.terrain);
       }
-    } else if (vertical) {
-      el('rect', { x: cx + T * 0.32, y: cy + T * 0.05, width: T * 0.36, height: T * 0.90, rx: 3, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 2 }, layers.terrain);
-      el('circle', { cx: cx + T * 0.40, cy: cy + T * 0.5, r: T * 0.05, fill: C.doorFrame }, layers.terrain);
     } else {
-      el('rect', { x: cx + T * 0.05, y: cy + T * 0.32, width: T * 0.90, height: T * 0.36, rx: 3, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 2 }, layers.terrain);
-      el('circle', { cx: cx + T * 0.5, cy: cy + T * 0.40, r: T * 0.05, fill: C.doorFrame }, layers.terrain);
+      const lx = vertical ? cx + T * 0.32 : cx + T * 0.05;
+      const ly = vertical ? cy + T * 0.05 : cy + T * 0.32;
+      const lw = vertical ? T * 0.36 : T * 0.90;
+      const lh = vertical ? T * 0.90 : T * 0.36;
+      el('rect', { x: lx, y: ly, width: lw, height: lh, rx: 3, fill: leaf, stroke: frame, 'stroke-width': 2 }, layers.terrain);
+      if (reinforced) {
+        // rivets to read as a blast-proof bulkhead
+        [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].forEach(([fx, fy]) =>
+          el('circle', { cx: lx + lw * fx, cy: ly + lh * fy, r: T * 0.035, fill: frame }, layers.terrain));
+      } else {
+        el('circle', { cx: cx + (vertical ? T * 0.40 : T * 0.5), cy: cy + (vertical ? T * 0.5 : T * 0.40), r: T * 0.05, fill: frame }, layers.terrain);
+      }
     }
   }
 
@@ -406,7 +450,7 @@ LS.render = (function () {
     }
   }
 
-  // march a ray from (sx,sy) along ang until it meets a wall, an intact window, or the map edge
+  // march a ray from (sx,sy) along ang until it meets anything that stops a shot, or the map edge
   function raycastToWall(sx, sy, ang, maxD) {
     const T = LS.config.tile, step = T * 0.2;
     const cx = Math.cos(ang), cy = Math.sin(ang);
@@ -415,8 +459,7 @@ LS.render = (function () {
       const tx = Math.floor(px / T), ty = Math.floor(py / T);
       if (tx < 0 || ty < 0 || tx >= LS.config.cols || ty >= LS.config.rows)
         return { x: sx + cx * (d - step), y: sy + cy * (d - step), hit: 'edge' };
-      if (LS.los.isWall(tx, ty)) return { x: px, y: py, hit: 'wall' };
-      if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) return { x: px, y: py, hit: 'window', tx, ty };
+      if (LS.los.blocksShot(tx, ty)) return { x: px, y: py, hit: LS.los.isWindow(tx, ty) ? 'window' : 'wall', tx, ty };
     }
     return { x: sx + cx * maxD, y: sy + cy * maxD, hit: 'none' };
   }

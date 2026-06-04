@@ -3,19 +3,21 @@
 LS.level = {
   name: 'Sector 7 — Compound Raid',
   brief: 'Blue squad breaches the compound from the west. Red squad holds inside. Wipe out the opposing squad.',
-  // legend: # wall  . ground  _ floor  D door (starts closed)  W window (intact)
+  // legend: # reinforced wall   x breakable wall   . ground   _ floor
+  //         D door (destructible)   R reinforced door (blast-proof)   W window
+  // Doors start closed. Breakable walls/doors blow to rubble; reinforced ones hold.
   map: [
     '................',
     '......##########',
-    '......#____#___#',
-    '......W____#___#',
-    '..#...D____#___#',
-    '..#...#____D___#',
-    '......#____#___#',
-    '...#..D____#___#',
-    '..#...W____W___#',
-    '......#____#___#',
-    '......##########',
+    '......#____x___#',
+    '......W____x___#',
+    '..x...D____x___#',
+    '..x...#____R___#',
+    '......#____x___#',
+    '...x..D____x___#',
+    '..x...W____W___#',
+    '......#____x___#',
+    '......##xx######',
     '................',
   ],
   // facing: 2 = East (attackers look in), 6 = West (defenders look out)
