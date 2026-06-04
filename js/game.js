@@ -196,6 +196,14 @@ LS.game = (function () {
     return { ok: true };
   }
 
+  // smash a window with no actor/AP (used when a shot's path or a stray miss meets the glass)
+  function breakWindow(x, y) {
+    if (LS.los.isWindow(x, y) && !LS.los.windowSmashed(x, y)) {
+      LS.state.windowsSmashed.add(key(x, y));
+      observe();
+    }
+  }
+
   // break a window with a shot from range (the round shatters the glass and stops — no pass-through)
   function shootWindow(unit, x, y) {
     if (!LS.los.isWindow(x, y) || LS.los.windowSmashed(x, y)) return { ok: false };
@@ -345,7 +353,7 @@ LS.game = (function () {
     applyStep, findReactors, fire, hitChance, inCoverFrom,
     teamVision, isVisible, observe, enemyDangerSet,
     toggleDoor, smashWindowMelee, shootWindow,
-    canThrowTo, throwGrenade, blastTiles, detonateGrenade,
+    canThrowTo, throwGrenade, blastTiles, detonateGrenade, breakWindow,
     endTurn, resumeTurn, checkWin, log,
   };
 })();

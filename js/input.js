@@ -109,9 +109,21 @@ LS.input = (function () {
         LS.render.draw();
         return;
       }
-      // fire on an enemy
+      // fire on an enemy. If glass is in the way, the shot fires and shatters it (stopping there)
+      // rather than refusing with "no line of sight".
       if (clicked && clicked.team !== sel.team) {
-        performShot(sel, clicked);
+        if (LS.los.canTarget(sel, clicked.x, clicked.y)) {
+          performShot(sel, clicked);
+        } else if (sel.ap < LS.level.weapon.fireCost) {
+          LS.game.log('Not enough AP to fire.'); LS.render.draw();
+        } else {
+          const b = LS.los.firstShotBlocker(sel.x, sel.y, clicked.x, clicked.y);
+          if (b && LS.los.isWindow(b.x, b.y) && !LS.los.windowSmashed(b.x, b.y)) {
+            performWindowShot(sel, b.x, b.y); // shatter the glass between you; the round stops there
+          } else {
+            LS.game.log('No line of sight.'); LS.render.draw();
+          }
+        }
         return;
       }
       // empty tile: move if reachable; out-of-range clicks do nothing (turning is via the ring)

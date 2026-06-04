@@ -181,14 +181,31 @@ LS.render = (function () {
     drawGrenades(T, C);
   }
 
-  // live (cooked) grenades: the danger zone they'll hit + the grenade marker with a lit fuse
+  // attach a looping SMIL animation to an element (declarative pulse — no rAF loop to manage)
+  function pulse(elem, attr, values, dur) {
+    const a = document.createElementNS(SVGNS, 'animate');
+    a.setAttribute('attributeName', attr);
+    a.setAttribute('values', values);
+    a.setAttribute('dur', dur);
+    a.setAttribute('repeatCount', 'indefinite');
+    elem.appendChild(a);
+  }
+
+  // live (cooked) grenades: the danger zone they'll hit + a pulsing marker with a lit fuse
   function drawGrenades(T, C) {
     LS.state.liveGrenades.forEach(g => {
       LS.game.blastTiles(g.x, g.y).forEach(({ x, y }) =>
         el('rect', { x: x * T + 1, y: y * T + 1, width: T - 2, height: T - 2, fill: C.blast }, layers.overlay));
       const cx = g.x * T + T / 2, cy = g.y * T + T / 2;
+      // expanding "ping" ring
+      const ring = el('circle', { cx, cy, r: T * 0.16, fill: 'none', stroke: C.fuse, 'stroke-width': 2 }, layers.overlay);
+      pulse(ring, 'r', `${T * 0.16};${T * 0.42}`, '1s');
+      pulse(ring, 'opacity', '0.85;0', '1s');
+      // marker body
       el('circle', { cx, cy, r: T * 0.16, fill: C.grenadeBody, stroke: '#11140d', 'stroke-width': 1.5 }, layers.overlay);
-      el('circle', { cx, cy: cy - T * 0.16, r: T * 0.05, fill: C.fuse }, layers.overlay);
+      // blinking fuse
+      const fuse = el('circle', { cx, cy: cy - T * 0.16, r: T * 0.055, fill: C.fuse }, layers.overlay);
+      pulse(fuse, 'opacity', '1;0.25;1', '0.7s');
     });
   }
 
@@ -344,13 +361,13 @@ LS.render = (function () {
     const sx = shooter.x * T + T / 2, sy = shooter.y * T + T / 2;
     const tcx = target.x * T + T / 2, tcy = target.y * T + T / 2;
 
-    // a miss sails wide of the target — and stops dead if it meets a wall on the way
-    let ex = tcx, ey = tcy, hitWall = false;
+    // a miss sails wide of the target — and stops dead if it meets a wall or window on the way
+    let ex = tcx, ey = tcy, missHit = null;
     if (!result.hit) {
       const ang = Math.atan2(tcy - sy, tcx - sx) + ((target.x + target.y) % 2 ? 0.17 : -0.17);
       const maxD = Math.hypot(tcx - sx, tcy - sy) + T * 1.5;
-      const end = raycastToWall(sx, sy, ang, maxD);
-      ex = end.x; ey = end.y; hitWall = end.wall;
+      missHit = raycastToWall(sx, sy, ang, maxD);
+      ex = missHit.x; ey = missHit.y;
     }
 
     fade(el('circle', { cx: sx, cy: sy, r: T * 0.16, fill: '#ffe9a8', opacity: 0.95 }, layers.fx), 180);
@@ -376,14 +393,20 @@ LS.render = (function () {
         if (result.killed) floatText('DOWN', tcx, tcy - T * 0.5, C.select, 1000);
       } else {
         LS.sound.play('miss');
-        if (hitWall) expand(el('circle', { cx: ex, cy: ey, r: T * 0.06, fill: 'none', stroke: '#9aa3af', 'stroke-width': 2.5 }, layers.fx), T * 0.28, 220);
+        if (missHit && missHit.hit === 'window') {
+          LS.game.breakWindow(missHit.tx, missHit.ty); // a stray round shatters the glass it strikes
+          LS.sound.play('glass');
+          glassBurst(ex, ey);
+        } else if (missHit && missHit.hit === 'wall') {
+          expand(el('circle', { cx: ex, cy: ey, r: T * 0.06, fill: 'none', stroke: '#9aa3af', 'stroke-width': 2.5 }, layers.fx), T * 0.28, 220);
+        }
         floatText('miss', ex, ey, '#9aa3af', 600);
       }
       setTimeout(() => done && done(), result.hit ? 200 : 120);
     }
   }
 
-  // march a ray from (sx,sy) along ang until it enters a wall tile or leaves the map
+  // march a ray from (sx,sy) along ang until it meets a wall, an intact window, or the map edge
   function raycastToWall(sx, sy, ang, maxD) {
     const T = LS.config.tile, step = T * 0.2;
     const cx = Math.cos(ang), cy = Math.sin(ang);
@@ -391,10 +414,11 @@ LS.render = (function () {
       const px = sx + cx * d, py = sy + cy * d;
       const tx = Math.floor(px / T), ty = Math.floor(py / T);
       if (tx < 0 || ty < 0 || tx >= LS.config.cols || ty >= LS.config.rows)
-        return { x: sx + cx * (d - step), y: sy + cy * (d - step), wall: false };
-      if (LS.los.isWall(tx, ty)) return { x: px, y: py, wall: true };
+        return { x: sx + cx * (d - step), y: sy + cy * (d - step), hit: 'edge' };
+      if (LS.los.isWall(tx, ty)) return { x: px, y: py, hit: 'wall' };
+      if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) return { x: px, y: py, hit: 'window', tx, ty };
     }
-    return { x: sx + cx * maxD, y: sy + cy * maxD, wall: false };
+    return { x: sx + cx * maxD, y: sy + cy * maxD, hit: 'none' };
   }
 
   function fade(elem, ms) {
