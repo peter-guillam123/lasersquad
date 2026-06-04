@@ -79,15 +79,58 @@ LS.render = (function () {
         let fill;
         if (ch === '#') fill = C.wall;
         else if (ch === '_') fill = (x + y) % 2 ? C.floorB : C.floorA;
-        else if (ch === 'D') fill = C.door;
+        else if (ch === 'D') fill = (x + y) % 2 ? C.floorB : C.floorA; // door threshold reads as floor
+        else if (ch === 'W') fill = C.wall;                            // a window sits in a wall
         else fill = (x + y) % 2 ? C.groundB : C.groundA;
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
-        if (ch === '#') {
-          // a little top highlight so walls read as solid
-          el('rect', { x: x * T, y: y * T, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
-        }
+        if (ch === '#') el('rect', { x: x * T, y: y * T, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
+        if (ch === 'D') drawDoor(x, y, T, C);
+        if (ch === 'W') drawWindow(x, y, T, C);
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'none', stroke: C.grid, 'stroke-width': 1 }, layers.terrain);
       }
+    }
+  }
+
+  // doors/windows orient along the wall they sit in (barriers above & below => vertical wall run)
+  function drawDoor(x, y, T, C) {
+    const open = LS.los.doorOpen(x, y);
+    const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1);
+    const cx = x * T, cy = y * T;
+    if (open) {
+      if (vertical) {
+        el('rect', { x: cx + T * 0.40, y: cy, width: T * 0.20, height: T * 0.12, fill: C.doorFrame }, layers.terrain);
+        el('rect', { x: cx + T * 0.40, y: cy + T * 0.88, width: T * 0.20, height: T * 0.12, fill: C.doorFrame }, layers.terrain);
+        el('rect', { x: cx + T * 0.52, y: cy + T * 0.07, width: T * 0.40, height: T * 0.12, rx: 2, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 1 }, layers.terrain);
+      } else {
+        el('rect', { x: cx, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: C.doorFrame }, layers.terrain);
+        el('rect', { x: cx + T * 0.88, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: C.doorFrame }, layers.terrain);
+        el('rect', { x: cx + T * 0.07, y: cy + T * 0.52, width: T * 0.12, height: T * 0.40, rx: 2, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 1 }, layers.terrain);
+      }
+    } else if (vertical) {
+      el('rect', { x: cx + T * 0.32, y: cy + T * 0.05, width: T * 0.36, height: T * 0.90, rx: 3, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 2 }, layers.terrain);
+      el('circle', { cx: cx + T * 0.40, cy: cy + T * 0.5, r: T * 0.05, fill: C.doorFrame }, layers.terrain);
+    } else {
+      el('rect', { x: cx + T * 0.05, y: cy + T * 0.32, width: T * 0.90, height: T * 0.36, rx: 3, fill: C.doorLeaf, stroke: C.doorFrame, 'stroke-width': 2 }, layers.terrain);
+      el('circle', { cx: cx + T * 0.5, cy: cy + T * 0.40, r: T * 0.05, fill: C.doorFrame }, layers.terrain);
+    }
+  }
+
+  function drawWindow(x, y, T, C) {
+    const smashed = LS.los.windowSmashed(x, y);
+    const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1);
+    const cx = x * T, cy = y * T;
+    const px = vertical ? cx + T * 0.30 : cx + T * 0.08;
+    const py = vertical ? cy + T * 0.08 : cy + T * 0.30;
+    const pw = vertical ? T * 0.40 : T * 0.84;
+    const ph = vertical ? T * 0.84 : T * 0.40;
+    if (!smashed) {
+      el('rect', { x: px, y: py, width: pw, height: ph, fill: C.glass, stroke: C.glassEdge, 'stroke-width': 2 }, layers.terrain);
+      el('line', { x1: px + pw / 2, y1: py, x2: px + pw / 2, y2: py + ph, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
+      el('line', { x1: px, y1: py + ph / 2, x2: px + pw, y2: py + ph / 2, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
+    } else {
+      el('rect', { x: px, y: py, width: pw, height: ph, fill: '#10131a', stroke: C.glassEdge, 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }, layers.terrain);
+      el('polygon', { points: `${px},${py} ${px + pw * 0.32},${py} ${px},${py + ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
+      el('polygon', { points: `${px + pw},${py + ph} ${px + pw - pw * 0.32},${py + ph} ${px + pw},${py + ph - ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
     }
   }
 
@@ -102,6 +145,7 @@ LS.render = (function () {
       reach.cost.forEach((c, k) => {
         if (c === 0) return; // skip the unit's own tile
         const x = k % LS.config.cols, y = Math.floor(k / LS.config.cols);
+        if (LS.los.isDoor(x, y)) return; // open doors are transit-only, never a destination
         // full colour if you'd still have AP banked to react; grey if moving here spends you out
         const fill = (sel.ap - c) >= fireCost ? armedFill : C.reachSpent;
         // red outline = a spotted enemy can shoot you on this tile (fair: only from enemies you can see)
@@ -201,6 +245,16 @@ LS.render = (function () {
     const sel = LS.game.selected();
     if (!sel) return;
 
+    // door / window action hints
+    if (LS.los.isDoor(tx, ty) && Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1 && sel.ap >= LS.config.ap.door) {
+      label(LS.los.doorOpen(tx, ty) ? 'close' : 'open', tx * T + T / 2, ty * T - 6, C.select, T); return;
+    }
+    if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) {
+      const adj = Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1;
+      if (adj && sel.ap >= LS.config.ap.door) { label('smash', tx * T + T / 2, ty * T - 6, C.select, T); return; }
+      if (!adj && sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) { label('shoot glass', tx * T + T / 2, ty * T - 6, C.target, T); return; }
+    }
+
     // hit-chance readout over a targetable enemy (reflects cover)
     if (hovVisible && hov.team !== sel.team && sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) {
       const ch = LS.game.hitChance(sel, tx, ty);
@@ -274,6 +328,7 @@ LS.render = (function () {
     requestAnimationFrame(fly);
 
     function impact() {
+      if (result.glass) { LS.sound.play('glass'); glassBurst(tcx, tcy); setTimeout(() => done && done(), 160); return; }
       if (result.hit) {
         LS.sound.play(result.killed ? 'down' : 'hit');
         expand(el('circle', { cx: tcx, cy: tcy, r: T * 0.1, fill: 'none', stroke: C.target, 'stroke-width': 3 }, layers.fx), T * 0.5, 280);
@@ -339,5 +394,25 @@ LS.render = (function () {
     });
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, shotFx, unitEls };
+  // a burst of glass shards (used by a shot that shatters a window, and by a melee smash)
+  function glassBurst(cx, cy) {
+    const T = LS.config.tile, C = LS.config.colors;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + 0.4;
+      fade(el('line', {
+        x1: cx + Math.cos(a) * T * 0.1, y1: cy + Math.sin(a) * T * 0.1,
+        x2: cx + Math.cos(a) * T * 0.34, y2: cy + Math.sin(a) * T * 0.34,
+        stroke: C.glassEdge, 'stroke-width': 2, 'stroke-linecap': 'round',
+      }, layers.fx), 320);
+    }
+  }
+
+  // public: a window smashed at melee range (no bolt, just the shatter)
+  function glassFx(x, y) {
+    const T = LS.config.tile;
+    LS.sound.play('glass');
+    glassBurst(x * T + T / 2, y * T + T / 2);
+  }
+
+  return { init, draw, drawHover, drawFacing, animateStep, shotFx, glassFx, unitEls };
 })();

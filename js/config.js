@@ -11,6 +11,7 @@ LS.config = {
     moveOrtho: 2,      // cost to step N/E/S/W
     moveDiag: 3,       // cost to step diagonally
     turn: 0,           // turning is free in this build (auto-facing); a real cost lands with opportunity fire
+    door: 4,           // open/close a door, or smash a window from an adjacent tile
   },
 
   combat: {
@@ -36,6 +37,10 @@ LS.config = {
     door:    '#5b5048',
     wall:    '#21242a',
     wallTop: '#2e333b',
+    doorLeaf:'#856a4b',   // a closed door
+    doorFrame:'#4a3f33',  // door posts / frame
+    glass:   'rgba(140,195,225,0.30)',  // intact window pane
+    glassEdge:'rgba(175,215,240,0.75)', // window mullions / frame
     grid:    'rgba(255,255,255,0.045)',
     blue:    '#4aa3ff',
     blueDark:'#1f5fa6',

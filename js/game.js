@@ -22,6 +22,8 @@ LS.game = (function () {
       turnCount: 1,
       handoff: false,     // true between turns: show the pass-the-device screen
       knowledge: { blue: {}, red: {} }, // per team: enemyId -> last-seen {x,y,facing,turn}
+      doorsOpen: new Set(),       // keys of doors currently open (default: all closed)
+      windowsSmashed: new Set(),  // keys of windows broken (default: all intact)
     };
     observe();
     log('Blue squad, move out. Click one of your soldiers.');
@@ -38,7 +40,7 @@ LS.game = (function () {
   function teamUnits(team) { return LS.state.units.filter(u => u.alive && u.team === team); }
 
   function isPassable(x, y) {
-    if (LS.los.isWall(x, y)) return false;
+    if (LS.los.blocksMove(x, y)) return false; // wall, window, or closed door
     if (unitAt(x, y)) return false;
     return true;
   }
@@ -60,8 +62,8 @@ LS.game = (function () {
         if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) continue;
         if (!isPassable(nx, ny)) continue;
         const diag = nd.dx !== 0 && nd.dy !== 0;
-        // no cutting through wall corners
-        if (diag && (LS.los.isWall(cur.x + nd.dx, cur.y) || LS.los.isWall(cur.x, cur.y + nd.dy))) continue;
+        // no cutting through the corner of a wall / door / window
+        if (diag && (LS.los.blocksMove(cur.x + nd.dx, cur.y) || LS.los.blocksMove(cur.x, cur.y + nd.dy))) continue;
         const nc = cur.c + (diag ? LS.config.ap.moveDiag : LS.config.ap.moveOrtho);
         if (nc > unit.ap) continue;
         if (nc < (cost.get(key(nx, ny)) ?? Infinity)) {
@@ -152,12 +154,55 @@ LS.game = (function () {
     observe(); // reveal whatever the mover can now see
   }
 
-  // enemies who can see the mover right now and have AP banked to shoot — sorted nearest first
+  // enemies who can see the mover (in arc) AND have a clear shot AND the AP to take it.
+  // The two LOS checks differ at glass: a defender behind intact glass sees you but can't fire.
   function findReactors(mover) {
     const w = LS.level.weapon;
     return LS.state.units
-      .filter(u => u.alive && u.team !== mover.team && u.ap >= w.fireCost && LS.los.canSee(u, mover.x, mover.y))
+      .filter(u => u.alive && u.team !== mover.team && u.ap >= w.fireCost &&
+        LS.los.canSee(u, mover.x, mover.y) && LS.los.canTarget(u, mover.x, mover.y))
       .sort((a, b) => LS.los.dist(a.x, a.y, mover.x, mover.y) - LS.los.dist(b.x, b.y, mover.x, mover.y));
+  }
+
+  // --- breachable barriers: doors and windows --------------------------------
+  const orthAdjacent = (u, x, y) => Math.abs(u.x - x) + Math.abs(u.y - y) === 1;
+
+  function toggleDoor(unit, x, y) {
+    if (!LS.los.isDoor(x, y)) return { ok: false };
+    if (!orthAdjacent(unit, x, y)) return { ok: false, reason: 'Move next to the door first.' };
+    if (unit.ap < LS.config.ap.door) return { ok: false, reason: 'Not enough AP for the door.' };
+    unit.ap -= LS.config.ap.door;
+    const kk = key(x, y), wasOpen = LS.state.doorsOpen.has(kk);
+    if (wasOpen) LS.state.doorsOpen.delete(kk); else LS.state.doorsOpen.add(kk);
+    faceToward(unit, x, y);
+    observe(); refreshReach();
+    log(`${unit.name} ${wasOpen ? 'closes' : 'opens'} the door.`);
+    return { ok: true };
+  }
+
+  function smashWindowMelee(unit, x, y) {
+    if (!LS.los.isWindow(x, y) || LS.los.windowSmashed(x, y)) return { ok: false };
+    if (!orthAdjacent(unit, x, y)) return { ok: false, reason: 'Move next to the window first.' };
+    if (unit.ap < LS.config.ap.door) return { ok: false, reason: 'Not enough AP to smash it.' };
+    unit.ap -= LS.config.ap.door;
+    LS.state.windowsSmashed.add(key(x, y));
+    faceToward(unit, x, y);
+    observe(); refreshReach();
+    log(`${unit.name} smashes the window.`);
+    return { ok: true };
+  }
+
+  // break a window with a shot from range (the round shatters the glass and stops — no pass-through)
+  function shootWindow(unit, x, y) {
+    if (!LS.los.isWindow(x, y) || LS.los.windowSmashed(x, y)) return { ok: false };
+    if (unit.ap < LS.level.weapon.fireCost) return { ok: false, reason: 'Not enough AP to fire.' };
+    if (!LS.los.canTarget(unit, x, y)) return { ok: false, reason: 'No line of sight to the window.' };
+    unit.ap -= LS.level.weapon.fireCost;
+    faceToward(unit, x, y);
+    LS.state.windowsSmashed.add(key(x, y));
+    observe(); refreshReach();
+    log(`${unit.name} shatters the window with a shot.`);
+    return { ok: true };
   }
 
   function faceToward(unit, tx, ty) {
@@ -240,6 +285,8 @@ LS.game = (function () {
     newGame, key, unitAt, unitById, selected, teamUnits, isPassable,
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
-    teamVision, isVisible, observe, enemyDangerSet, endTurn, resumeTurn, checkWin, log,
+    teamVision, isVisible, observe, enemyDangerSet,
+    toggleDoor, smashWindowMelee, shootWindow,
+    endTurn, resumeTurn, checkWin, log,
   };
 })();

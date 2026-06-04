@@ -3,16 +3,17 @@
 LS.level = {
   name: 'Sector 7 — Compound Raid',
   brief: 'Blue squad breaches the compound from the west. Red squad holds inside. Wipe out the opposing squad.',
+  // legend: # wall  . ground  _ floor  D door (starts closed)  W window (intact)
   map: [
     '................',
     '......##########',
     '......#____#___#',
-    '......#____#___#',
+    '......W____#___#',
     '..#...D____#___#',
     '..#...#____D___#',
     '......#____#___#',
     '...#..D____#___#',
-    '..#...#____#___#',
+    '..#...W____W___#',
     '......#____#___#',
     '......##########',
     '................',

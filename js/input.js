@@ -55,6 +55,30 @@ LS.input = (function () {
     }
 
     if (sel) {
+      // doors: click an adjacent door to open/close it
+      if (LS.los.isDoor(tx, ty)) {
+        const r = LS.game.toggleDoor(sel, tx, ty);
+        if (r.ok) LS.sound.play('door'); else if (r.reason) LS.game.log(r.reason);
+        LS.render.draw();
+        return;
+      }
+      // intact windows: smash at melee range, or break with a shot from range
+      if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) {
+        const adj = Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1;
+        if (adj) {
+          const r = LS.game.smashWindowMelee(sel, tx, ty);
+          if (r.ok) LS.render.glassFx(tx, ty); else if (r.reason) LS.game.log(r.reason);
+          LS.render.draw();
+          return;
+        }
+        if (sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) {
+          performWindowShot(sel, tx, ty);
+          return;
+        }
+        LS.game.log('Too far to break that window — get closer, or line up a clear shot.');
+        LS.render.draw();
+        return;
+      }
       // fire on an enemy
       if (clicked && clicked.team !== sel.team) {
         performShot(sel, clicked);
@@ -74,6 +98,18 @@ LS.input = (function () {
     // clicked empty space / enemy with nothing selected → clear selection
     LS.game.selectUnit(null);
     LS.render.draw();
+  }
+
+  // break a window with a shot from range: resolve, animate the bolt shattering it, redraw
+  function performWindowShot(unit, x, y) {
+    const res = LS.game.shootWindow(unit, x, y);
+    if (!res.ok) { LS.game.log(res.reason); LS.render.draw(); return; }
+    LS.state.busy = true;
+    LS.ui.update();
+    LS.render.shotFx(unit, { x, y }, { ok: true, hit: true, glass: true }, () => {
+      LS.state.busy = false;
+      LS.render.draw();
+    });
   }
 
   // a player-initiated shot: resolve, then play the feedback, then redraw
