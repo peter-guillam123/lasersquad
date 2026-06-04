@@ -105,7 +105,8 @@ LS.render = (function () {
       for (let x = 0; x < LS.config.cols; x++) {
         const ch = LS.level.map[y][x];
         const rubbled = LS.los.rubbled(x, y), cratered = LS.los.cratered(x, y);
-        const floorLike = ch === '_' || ch === 'D' || ch === 'R';
+        const decor = !rubbled && !cratered && LS.los.isDecor(x, y); // crate/desk/locker/console
+        const floorLike = ch === '_' || ch === 'D' || ch === 'R' || decor; // decor sits on a floor
         let fill;
         if (rubbled) fill = (x + y) % 2 ? C.floorB : C.floorA;     // blown open -> floor
         else if (ch === '#') fill = C.wall;
@@ -114,7 +115,7 @@ LS.render = (function () {
         else if (floorLike) fill = (x + y) % 2 ? C.floorB : C.floorA;
         else fill = (x + y) % 2 ? C.groundB : C.groundA;           // '.' ground
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
-        if (ch === '_' && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
+        if ((ch === '_' || decor) && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
           el('rect', { x: x * T + 3, y: y * T + 3, width: T - 6, height: T - 6, rx: 3, fill: 'none', stroke: 'rgba(0,0,0,0.16)', 'stroke-width': 1 }, layers.terrain);
 
         if (rubbled) drawRubble(x, y, T, C);
@@ -123,6 +124,7 @@ LS.render = (function () {
         else if (ch === 'x') drawBreakableWall(x, y, T, C);
         else if (ch === 'D' || ch === 'R') drawDoor(x, y, T, C, ch === 'R');
         else if (ch === 'W') drawWindow(x, y, T, C);
+        else if (decor) drawDecor(x, y, T, C, ch);
 
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'none', stroke: C.grid, 'stroke-width': 1 }, layers.terrain);
       }
@@ -223,6 +225,51 @@ LS.render = (function () {
       el('polygon', { points: `${px},${py} ${px + pw * 0.32},${py} ${px},${py + ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
       el('polygon', { points: `${px + pw},${py + ph} ${px + pw - pw * 0.32},${py + ph} ${px + pw},${py + ph - ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
     }
+  }
+
+  // decor objects: low cover (crate, desk) reads short and open-topped; tall cover (locker,
+  // console) fills the tile and reads solid, since it blocks sight.
+  function drawDecor(x, y, T, C, ch) {
+    if (ch === 'c') drawCrate(x, y, T, C);
+    else if (ch === 't') drawDesk(x, y, T, C);
+    else if (ch === 'L') drawLocker(x, y, T, C);
+    else if (ch === 'M') drawConsole(x, y, T, C);
+  }
+
+  function drawCrate(x, y, T, C) {
+    const cx = x * T, cy = y * T, p = T * 0.17;
+    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    el('rect', { x: x0, y: y0 + h * 0.08, width: w, height: h * 0.92, rx: 2, fill: C.crateBody, stroke: C.crateEdge, 'stroke-width': 1.5 }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.26, rx: 2, fill: C.crateTop }, layers.terrain); // lid (lighter top face)
+    el('line', { x1: x0, y1: y0 + h * 0.3, x2: x0 + w, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain); // X brace
+    el('line', { x1: x0 + w, y1: y0 + h * 0.3, x2: x0, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain);
+  }
+
+  function drawDesk(x, y, T, C) {
+    const cx = x * T, cy = y * T;
+    const x0 = cx + T * 0.12, w = T * 0.76, y0 = cy + T * 0.30, h = T * 0.34;
+    [0.18, 0.74].forEach(fx => el('rect', { x: cx + T * fx, y: y0 + h * 0.6, width: T * 0.08, height: T * 0.26, fill: C.deskLeg }, layers.terrain)); // legs
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.deskTop, stroke: 'rgba(0,0,0,0.32)', 'stroke-width': 1 }, layers.terrain); // surface
+    el('line', { x1: x0, y1: y0 + h * 0.55, x2: x0 + w, y2: y0 + h * 0.55, stroke: 'rgba(0,0,0,0.18)', 'stroke-width': 1 }, layers.terrain);
+  }
+
+  function drawLocker(x, y, T, C) {
+    const cx = x * T, cy = y * T, p = T * 0.12;
+    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.lockerBody, stroke: C.lockerEdge, 'stroke-width': 1.5 }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.12, fill: 'rgba(255,255,255,0.06)' }, layers.terrain); // top highlight
+    el('line', { x1: x0 + w / 2, y1: y0, x2: x0 + w / 2, y2: y0 + h, stroke: C.lockerEdge, 'stroke-width': 1.5 }, layers.terrain); // twin doors
+    [0.34, 0.66].forEach(fx => el('rect', { x: x0 + w * fx - T * 0.015, y: y0 + h * 0.42, width: T * 0.03, height: h * 0.16, rx: 1, fill: C.lockerHandle }, layers.terrain)); // handles
+  }
+
+  function drawConsole(x, y, T, C) {
+    const cx = x * T, cy = y * T, p = T * 0.12;
+    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.consoleBody, stroke: C.consoleEdge, 'stroke-width': 1.5 }, layers.terrain);
+    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.14, width: w * 0.68, height: h * 0.40, rx: 1, fill: '#0c0f12', stroke: C.consoleEdge, 'stroke-width': 1 }, layers.terrain); // screen well
+    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.14, width: w * 0.68, height: h * 0.40, rx: 1, fill: C.consoleScreen }, layers.terrain); // dim glow
+    [0.26, 0.40].forEach(fy => el('line', { x1: x0 + w * 0.18, y1: y0 + h * fy, x2: x0 + w * 0.82, y2: y0 + h * fy, stroke: 'rgba(0,0,0,0.22)', 'stroke-width': 1 }, layers.terrain)); // scan lines
+    [0.32, 0.5, 0.68].forEach(fx => el('circle', { cx: x0 + w * fx, cy: y0 + h * 0.74, r: T * 0.03, fill: C.lockerHandle }, layers.terrain)); // buttons
   }
 
   function drawOverlay(T, C) {

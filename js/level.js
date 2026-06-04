@@ -5,6 +5,8 @@ LS.level = {
   brief: 'Blue squad breaches the compound from the west. Red squad holds inside. Wipe out the opposing squad.',
   // legend: # reinforced wall   x breakable wall   . ground   _ floor
   //         D door (destructible)   R reinforced door (blast-proof)   W window
+  //         c crate / t desk = low cover (see & shoot over)
+  //         L locker / M console = tall cover (also blocks sight & fire)
   // 26 x 18 — bigger than the screen, so the camera scrolls. Compound on the right, open approach on the left.
   map: [
     '..........................',
@@ -12,14 +14,14 @@ LS.level = {
     '..........................',
     '..........................',
     '................##########',
-    '................#____x___#',
+    '................#L___x__M#',
     '................W____x___#',
     '............x...D____x___#',
-    '............x...#____R___#',
-    '................#____x___#',
+    '............x...#____R__M#',
+    '................#_cc_xc__#',
     '.............x..D____x___#',
     '............x...W____W___#',
-    '................#____x___#',
+    '................#___tx_t_#',
     '................##xx######',
     '..........................',
     '..........................',

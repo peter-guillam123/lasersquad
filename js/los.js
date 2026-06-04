@@ -17,34 +17,46 @@ LS.los = (function () {
   function isBarrier(x, y) { const c = tileChar(x, y); return c === '#' || c === 'x' || c === 'D' || c === 'R' || c === 'W'; }
   function doorOpen(x, y) { return !!(LS.state && LS.state.doorsOpen && LS.state.doorsOpen.has(k(x, y))); }
   function windowSmashed(x, y) { return !!(LS.state && LS.state.windowsSmashed && LS.state.windowsSmashed.has(k(x, y))); }
-  // a wall (reinforced or intact breakable) that shields a target — used for cover
-  function givesCover(x, y) { if (rubbled(x, y)) return false; const c = tileChar(x, y); return c === '#' || c === 'x'; }
 
-  // walls and closed doors block sight; windows are see-through; rubble and craters don't block sight
+  // decor objects sit on the floor. Each gives cover; all block movement; only the tall ones
+  // (locker, console) block sight & fire — crates and desks you can see and shoot over.
+  const DECOR = {
+    c: { sight: false, shot: false }, // crate  — low cover
+    t: { sight: false, shot: false }, // desk   — low cover
+    L: { sight: true,  shot: true  }, // locker — tall cover
+    M: { sight: true,  shot: true  }, // console/machinery — tall cover
+  };
+  function decorAt(x, y) { return DECOR[tileChar(x, y)] || null; }
+  function isDecor(x, y) { return !!DECOR[tileChar(x, y)]; }
+
+  // a thing that shields a target — used for cover (reinforced/breakable wall, or any decor object)
+  function givesCover(x, y) { if (rubbled(x, y)) return false; const c = tileChar(x, y); return c === '#' || c === 'x' || !!DECOR[c]; }
+
+  // walls and closed doors block sight; windows & low cover are see-through; rubble/craters don't block
   function blocksSight(x, y) {
     if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
     if (c === '#' || c === 'x') return true;
     if (c === 'D' || c === 'R') return !doorOpen(x, y);
-    return false;
+    return !!(DECOR[c] && DECOR[c].sight);
   }
-  // as sight, plus intact windows stop a shot
+  // as sight, plus intact windows and tall decor stop a shot
   function blocksShot(x, y) {
     if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
     if (c === '#' || c === 'x') return true;
     if (c === 'D' || c === 'R') return !doorOpen(x, y);
     if (c === 'W') return !windowSmashed(x, y);
-    return false;
+    return !!(DECOR[c] && DECOR[c].shot);
   }
-  // anything that stops a body: walls, windows, closed doors, AND craters (a hole you can't cross)
+  // anything that stops a body: walls, windows, closed doors, decor, AND craters (a hole you can't cross)
   function blocksMove(x, y) {
     if (cratered(x, y)) return true;
     if (rubbled(x, y)) return false;
     const c = tileChar(x, y);
     if (c === '#' || c === 'x' || c === 'W') return true;
     if (c === 'D' || c === 'R') return !doorOpen(x, y);
-    return false;
+    return !!DECOR[c]; // every decor object blocks movement (you can't stand on a crate)
   }
 
   // Bresenham; false if `blocks` is true for any tile strictly between the endpoints
@@ -100,7 +112,7 @@ LS.los = (function () {
   }
 
   return {
-    tileChar, isWall, isBreakable, isDoor, isReinforcedDoor, isWindow, isBarrier,
+    tileChar, isWall, isBreakable, isDoor, isReinforcedDoor, isWindow, isBarrier, isDecor, decorAt,
     doorOpen, windowSmashed, rubbled, cratered, givesCover,
     blocksSight, blocksShot, blocksMove, lineClear, dist, canTarget, canSee, firstShotBlocker,
   };

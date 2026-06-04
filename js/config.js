@@ -66,6 +66,19 @@ LS.config = {
     doorSteelFrame:'#3a4048',
     glass:   'rgba(140,195,225,0.30)',  // intact window pane
     glassEdge:'rgba(175,215,240,0.75)', // window mullions / frame
+    // decor objects (cover). Low cover = crate/desk; tall cover = locker/console.
+    crateTop:  '#7a6242',  // crate lid (lighter top face)
+    crateBody: '#5f4c34',  // crate sides
+    crateEdge: 'rgba(0,0,0,0.38)',
+    crateBrace:'#8a6e49',  // the X-brace banding
+    deskTop:   '#6a5942',  // desk surface
+    deskLeg:   '#3f3527',  // desk legs
+    lockerBody:'#49545f',  // tall steel locker
+    lockerEdge:'#2c343c',
+    lockerHandle:'#8d99a6',
+    consoleBody:'#3a4048',          // machinery console
+    consoleEdge:'#262b31',
+    consoleScreen:'rgba(90,200,170,0.45)', // dim teal screen glow (kept low so overlays still read)
     grid:    'rgba(255,255,255,0.045)',
     blue:    '#4aa3ff',
     blueDark:'#1f5fa6',
