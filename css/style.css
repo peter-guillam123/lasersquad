@@ -134,6 +134,10 @@ body {
 .end-turn { background: var(--gold); color: #2a2410; }
 .end-turn:hover { filter: brightness(1.05); }
 .end-turn:disabled { opacity: 0.4; cursor: default; }
+.throw-btn { background: var(--panel2); color: var(--ink); }
+.throw-btn:hover { background: #2b323d; }
+.throw-btn:disabled { opacity: 0.4; cursor: default; }
+.throw-btn.arming { background: #ffae3c; color: #2a1e08; }
 
 .log-wrap { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .log-title { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }

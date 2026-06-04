@@ -148,30 +148,48 @@ LS.render = (function () {
   function drawOverlay(T, C) {
     clear(layers.overlay);
     const sel = LS.game.selected();
-    const reach = LS.state.reach;
-    // movement field for the selected unit
-    if (sel && reach && !LS.state.busy) {
-      const armedFill = sel.team === 'blue' ? C.reachBlue : C.reachRed;
-      const fireCost = LS.level.weapon.fireCost;
-      reach.cost.forEach((c, k) => {
-        if (c === 0) return; // skip the unit's own tile
-        const x = k % LS.config.cols, y = Math.floor(k / LS.config.cols);
-        // full colour if you'd still have AP banked to react; grey if moving here spends you out
-        const fill = (sel.ap - c) >= fireCost ? armedFill : C.reachSpent;
-        // red outline = a spotted enemy can shoot you on this tile (fair: only from enemies you can see)
-        const dangerous = danger.has(k);
-        el('rect', {
-          x: x * T + 2, y: y * T + 2, width: T - 4, height: T - 4, rx: 4, fill,
-          stroke: dangerous ? C.target : 'none', 'stroke-width': dangerous ? 2 : 0,
-        }, layers.overlay);
-      });
-      // targetable enemies
-      if (sel.ap >= LS.level.weapon.fireCost) {
-        LS.game.teamUnits(sel.team === 'blue' ? 'red' : 'blue').forEach(t => {
-          if (LS.los.canTarget(sel, t.x, t.y)) drawReticle(t.x, t.y, T, C);
+    if (sel && !LS.state.busy) {
+      if (LS.state.throwMode) {
+        // grenade aiming: highlight every tile you can lob to
+        const R = LS.config.grenade.range;
+        for (let y = Math.max(0, sel.y - R); y <= Math.min(LS.config.rows - 1, sel.y + R); y++)
+          for (let x = Math.max(0, sel.x - R); x <= Math.min(LS.config.cols - 1, sel.x + R); x++)
+            if (LS.game.canThrowTo(sel, x, y))
+              el('rect', { x: x * T + 2, y: y * T + 2, width: T - 4, height: T - 4, rx: 4, fill: C.throwRange }, layers.overlay);
+      } else if (LS.state.reach) {
+        const reach = LS.state.reach;
+        const armedFill = sel.team === 'blue' ? C.reachBlue : C.reachRed;
+        const fireCost = LS.level.weapon.fireCost;
+        reach.cost.forEach((c, k) => {
+          if (c === 0) return; // skip the unit's own tile
+          const x = k % LS.config.cols, y = Math.floor(k / LS.config.cols);
+          // full colour if you'd still have AP banked to react; grey if moving here spends you out
+          const fill = (sel.ap - c) >= fireCost ? armedFill : C.reachSpent;
+          const dangerous = danger.has(k); // red outline = a spotted enemy can shoot you here
+          el('rect', {
+            x: x * T + 2, y: y * T + 2, width: T - 4, height: T - 4, rx: 4, fill,
+            stroke: dangerous ? C.target : 'none', 'stroke-width': dangerous ? 2 : 0,
+          }, layers.overlay);
         });
+        if (sel.ap >= LS.level.weapon.fireCost) {
+          LS.game.teamUnits(sel.team === 'blue' ? 'red' : 'blue').forEach(t => {
+            if (LS.los.canTarget(sel, t.x, t.y)) drawReticle(t.x, t.y, T, C);
+          });
+        }
       }
     }
+    drawGrenades(T, C);
+  }
+
+  // live (cooked) grenades: the danger zone they'll hit + the grenade marker with a lit fuse
+  function drawGrenades(T, C) {
+    LS.state.liveGrenades.forEach(g => {
+      LS.game.blastTiles(g.x, g.y).forEach(({ x, y }) =>
+        el('rect', { x: x * T + 1, y: y * T + 1, width: T - 2, height: T - 2, fill: C.blast }, layers.overlay));
+      const cx = g.x * T + T / 2, cy = g.y * T + T / 2;
+      el('circle', { cx, cy, r: T * 0.16, fill: C.grenadeBody, stroke: '#11140d', 'stroke-width': 1.5 }, layers.overlay);
+      el('circle', { cx, cy: cy - T * 0.16, r: T * 0.05, fill: C.fuse }, layers.overlay);
+    });
   }
 
   function drawReticle(x, y, T, C) {
@@ -247,6 +265,17 @@ LS.render = (function () {
     clear(layers.threat);
     if (LS.state.busy || LS.state.over || LS.state.handoff || tx == null) return;
     const T = LS.config.tile, C = LS.config.colors;
+
+    // grenade aiming: show the blast footprint under the cursor
+    if (LS.state.throwMode) {
+      const u = LS.game.selected();
+      if (u && LS.game.canThrowTo(u, tx, ty)) {
+        LS.game.blastTiles(tx, ty).forEach(({ x, y }) => el('rect', { x: x * T + 1, y: y * T + 1, width: T - 2, height: T - 2, fill: C.blast }, layers.hover));
+        label('throw', tx * T + T / 2, ty * T - 6, '#ffae3c', T);
+      }
+      return;
+    }
+
     const hov = LS.game.unitAt(tx, ty);
     // a fogged enemy must not leak through the hover readouts
     const hovVisible = hov && (hov.team === LS.state.activeTeam || vision.has(LS.game.key(tx, ty)));
@@ -425,5 +454,41 @@ LS.render = (function () {
     glassBurst(x * T + T / 2, y * T + T / 2);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, shotFx, glassFx, unitEls };
+  // lob a grenade along a parabola from `from` to `to`, then done()
+  function throwArc(from, to, done) {
+    const T = LS.config.tile, C = LS.config.colors;
+    LS.sound.play('throw');
+    if (!LS.config.anim.enabled) { done && done(); return; }
+    const x0 = from.x * T + T / 2, y0 = from.y * T + T / 2;
+    const x2 = to.x * T + T / 2, y2 = to.y * T + T / 2;
+    const arcH = Math.min(T * 2.2, Math.hypot(x2 - x0, y2 - y0) * 0.5 + T * 0.6);
+    const cxp = (x0 + x2) / 2, cyp = (y0 + y2) / 2 - arcH; // control point lifts the path
+    const gr = el('circle', { r: T * 0.15, fill: C.grenadeBody, stroke: '#11140d', 'stroke-width': 1.5 }, layers.fx);
+    let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts;
+      const t = Math.min(1, (ts - start) / 420), mt = 1 - t;
+      gr.setAttribute('cx', mt * mt * x0 + 2 * mt * t * cxp + t * t * x2);
+      gr.setAttribute('cy', mt * mt * y0 + 2 * mt * t * cyp + t * t * y2);
+      if (t < 1) requestAnimationFrame(f); else { gr.remove(); done && done(); }
+    });
+  }
+
+  // an explosion at grenade g with its damage hits (floating numbers per victim)
+  function explosionFx(g, hits, done) {
+    LS.sound.play('boom');
+    const T = LS.config.tile;
+    if (!LS.config.anim.enabled) { done && done(); return; }
+    const cx = g.x * T + T / 2, cy = g.y * T + T / 2, RR = LS.config.grenade.radius;
+    fade(el('circle', { cx, cy, r: T * 0.5, fill: '#ffd27a', opacity: 0.9 }, layers.fx), 220);
+    expand(el('circle', { cx, cy, r: T * 0.2, fill: 'none', stroke: '#ff7a2a', 'stroke-width': 4 }, layers.fx), T * (RR + 0.6), 380);
+    expand(el('circle', { cx, cy, r: T * 0.15, fill: 'none', stroke: '#ffd27a', 'stroke-width': 2 }, layers.fx), T * (RR + 0.2), 320);
+    hits.forEach(h => {
+      floatText(`-${h.dmg}`, h.x * T + T / 2, h.y * T + T / 2 - T * 0.2, LS.config.colors.target);
+      if (h.killed) floatText('DOWN', h.x * T + T / 2, h.y * T + T / 2 - T * 0.5, LS.config.colors.select, 1000);
+    });
+    setTimeout(() => done && done(), 320);
+  }
+
+  return { init, draw, drawHover, drawFacing, animateStep, shotFx, glassFx, throwArc, explosionFx, unitEls };
 })();

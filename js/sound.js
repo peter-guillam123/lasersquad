@@ -44,6 +44,8 @@ LS.sound = (function () {
     else if (kind === 'down') tone({ freq: 260, freqEnd: 70, type: 'sawtooth', dur: 0.42, vol: 0.1 });
     else if (kind === 'door') { tone({ freq: 120, freqEnd: 80, type: 'triangle', dur: 0.18, vol: 0.09 }); noise({ dur: 0.05, vol: 0.03 }); }
     else if (kind === 'glass') { noise({ dur: 0.18, vol: 0.07 }); tone({ freq: 2400, freqEnd: 1400, type: 'triangle', dur: 0.12, vol: 0.04 }); }
+    else if (kind === 'throw') tone({ freq: 520, freqEnd: 900, type: 'sine', dur: 0.18, vol: 0.04 });
+    else if (kind === 'boom') { noise({ dur: 0.4, vol: 0.16 }); tone({ freq: 90, freqEnd: 40, type: 'sawtooth', dur: 0.4, vol: 0.14 }); }
   }
 
   function toggle() { muted = !muted; if (!muted) ensure(); return muted; }

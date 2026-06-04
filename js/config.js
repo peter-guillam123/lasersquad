@@ -24,6 +24,15 @@ LS.config = {
     coverPenalty: 0.25, // hit-chance cut when a wall shields the target on the shooter's side
   },
 
+  grenade: {
+    count: 2,         // grenades each soldier carries
+    throwCost: 6,     // AP to throw (~the 25% the original used)
+    range: 6,         // max throw distance (tiles); lobbed, so no line of sight needed
+    radius: 2,        // blast reaches this far (Manhattan diamond); walls stop it
+    dmgCenter: 8,     // damage at the epicentre
+    dmgFalloff: 2.5,  // damage lost per tile from the centre
+  },
+
   anim: {
     enabled: true,
     msPerTile: 85,     // movement glide speed
@@ -55,6 +64,10 @@ LS.config = {
     target:  '#ff5d5d',
     path:    '#ffd166',
     fog:     'rgba(8,10,14,0.52)',  // veil over tiles your squad can't currently see
+    throwRange:'rgba(255,170,60,0.16)', // tiles you can lob a grenade to
+    blast:   'rgba(255,120,40,0.34)',   // grenade blast preview / live-grenade danger zone
+    grenadeBody:'#39402a',              // thrown grenade marker
+    fuse:    '#ff5d5d',                 // its lit fuse
   },
 };
 

@@ -16,9 +16,24 @@ LS.ui = (function () {
         <div class="unit-name ${u.team}">${u.name}</div>
         <div class="stat"><span>Health</span><div class="bar"><i style="width:${100 * u.hp / u.maxHp}%;background:${u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a'}"></i></div><b>${u.hp}/${u.maxHp}</b></div>
         <div class="stat"><span>Action</span><div class="bar"><i style="width:${100 * u.ap / LS.config.ap.max}%;background:#4aa3ff"></i></div><b>${u.ap}/${LS.config.ap.max}</b></div>
-        <div class="weapon">${w.name} · fire ${w.fireCost} AP · dmg ${w.dmgMin}–${w.dmgMax}</div>`;
+        <div class="weapon">${w.name} · fire ${w.fireCost} AP · dmg ${w.dmgMin}–${w.dmgMax}<br>Grenades: ${u.grenades} · throw ${LS.config.grenade.throwCost} AP</div>`;
     } else {
       card.innerHTML = `<div class="hint">Select one of your soldiers.</div>`;
+    }
+
+    // throw-grenade button (contextual to the selected soldier)
+    const tb = document.getElementById('throw-btn');
+    if (u && u.team === s.activeTeam && !s.over) {
+      tb.style.display = '';
+      if (s.throwMode) {
+        tb.textContent = 'Cancel throw'; tb.disabled = false; tb.classList.add('arming');
+      } else {
+        tb.classList.remove('arming');
+        tb.textContent = `Throw grenade (${u.grenades})`;
+        tb.disabled = s.busy || u.grenades <= 0 || u.ap < LS.config.grenade.throwCost;
+      }
+    } else {
+      tb.style.display = 'none';
     }
 
     // log

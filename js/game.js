@@ -9,6 +9,7 @@ LS.game = (function () {
       maxHp: LS.level.unitHp,
       ap: LS.config.ap.max,
       alive: true,
+      grenades: LS.config.grenade.count,
     }));
     LS.state = {
       units,
@@ -24,6 +25,8 @@ LS.game = (function () {
       knowledge: { blue: {}, red: {} }, // per team: enemyId -> last-seen {x,y,facing,turn}
       doorsOpen: new Set(),       // keys of doors currently open (default: all closed)
       windowsSmashed: new Set(),  // keys of windows broken (default: all intact)
+      liveGrenades: [],           // {x,y,team} thrown this turn, detonate at end of turn (cook)
+      throwMode: null,            // unit id currently aiming a grenade, or null
     };
     observe();
     log('Blue squad, move out. Click one of your soldiers.');
@@ -141,6 +144,7 @@ LS.game = (function () {
   // --- actions -------------------------------------------------------------
   function selectUnit(id) {
     LS.state.selectedId = id;
+    LS.state.throwMode = null; // changing selection cancels grenade aiming
     refreshReach();
   }
 
@@ -252,8 +256,62 @@ LS.game = (function () {
     return res;
   }
 
+  // --- grenades (cooked: thrown now, detonate at end of turn) -----------------
+  function canThrowTo(unit, x, y) {
+    if (LS.los.dist(unit.x, unit.y, x, y) > LS.config.grenade.range) return false;
+    return !LS.los.blocksMove(x, y); // can't land it inside a wall/window/closed door
+  }
+
+  function throwGrenade(unit, x, y) {
+    if (unit.grenades <= 0) return { ok: false, reason: 'No grenades left.' };
+    if (unit.ap < LS.config.grenade.throwCost) return { ok: false, reason: 'Not enough AP to throw.' };
+    if (!canThrowTo(unit, x, y)) return { ok: false, reason: 'Out of range, or no clear spot to land it.' };
+    unit.grenades -= 1;
+    unit.ap -= LS.config.grenade.throwCost;
+    faceToward(unit, x, y);
+    LS.state.liveGrenades.push({ x, y, team: unit.team });
+    refreshReach();
+    log(`${unit.name} lobs a grenade. It'll go off at end of turn — clear the blast!`);
+    return { ok: true };
+  }
+
+  // tiles a blast at (cx,cy) reaches: within the radius (diamond) and not behind a wall/closed door
+  function blastTiles(cx, cy) {
+    const R = LS.config.grenade.radius, out = [];
+    for (let y = cy - R; y <= cy + R; y++) {
+      for (let x = cx - R; x <= cx + R; x++) {
+        if (x < 0 || y < 0 || x >= LS.config.cols || y >= LS.config.rows) continue;
+        const d = Math.abs(x - cx) + Math.abs(y - cy);
+        if (d > R) continue;
+        if (d > 0 && !LS.los.lineClear(cx, cy, x, y, LS.los.blocksSight)) continue; // walls/closed doors stop it
+        out.push({ x, y, d });
+      }
+    }
+    return out;
+  }
+
+  // detonate one grenade: apply falloff damage to every unit in the blast (friendly fire included)
+  function detonateGrenade(g) {
+    const hits = [];
+    blastTiles(g.x, g.y).forEach(({ x, y, d }) => {
+      // the blast blows out any intact window it reaches (it already passes through glass to hit beyond)
+      if (LS.los.isWindow(x, y) && !LS.los.windowSmashed(x, y)) LS.state.windowsSmashed.add(key(x, y));
+      const u = unitAt(x, y);
+      if (!u) return;
+      const dmg = Math.max(1, Math.round(LS.config.grenade.dmgCenter - d * LS.config.grenade.dmgFalloff));
+      u.hp = Math.max(0, u.hp - dmg);
+      const killed = u.hp === 0;
+      if (killed) u.alive = false;
+      hits.push({ x, y, dmg, killed, name: u.name });
+    });
+    if (hits.length) log(`Grenade: ${hits.map(h => `${h.name} -${h.dmg}${h.killed ? ' (down)' : ''}`).join(', ')}`);
+    else log('Grenade detonates — no one in the blast.');
+    return hits;
+  }
+
   function endTurn() {
     if (LS.state.over) return;
+    LS.state.throwMode = null;
     LS.state.activeTeam = LS.state.activeTeam === 'blue' ? 'red' : 'blue';
     LS.state.turnCount++;
     teamUnits(LS.state.activeTeam).forEach(u => { u.ap = LS.config.ap.max; });
@@ -287,6 +345,7 @@ LS.game = (function () {
     applyStep, findReactors, fire, hitChance, inCoverFrom,
     teamVision, isVisible, observe, enemyDangerSet,
     toggleDoor, smashWindowMelee, shootWindow,
+    canThrowTo, throwGrenade, blastTiles, detonateGrenade,
     endTurn, resumeTurn, checkWin, log,
   };
 })();

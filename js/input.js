@@ -47,6 +47,13 @@ LS.input = (function () {
   function onClick(e) {
     LS.sound.ensure(); // first real click unlocks audio (browser autoplay rules)
     if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+    // grenade aiming intercepts everything: click a valid tile to throw, anywhere else to cancel
+    if (LS.state.throwMode) {
+      const sel = LS.game.selected(), t = tileFromEvent(e);
+      if (sel && t && LS.game.canThrowTo(sel, t.x, t.y)) performThrow(sel, t.x, t.y);
+      else { LS.state.throwMode = null; LS.render.draw(); }
+      return;
+    }
     const { px, py } = pointFromEvent(e);
     const rd = ringDirAt(px, py);
     if (rd >= 0) { LS.game.selected().facing = rd; LS.game.observe(); LS.render.draw(); return; }
@@ -121,6 +128,43 @@ LS.input = (function () {
     // clicked empty space / enemy with nothing selected → clear selection
     LS.game.selectUnit(null);
     LS.render.draw();
+  }
+
+  // throw a grenade: resolve, animate the arc, then it sits live until end of turn
+  function performThrow(unit, x, y) {
+    const r = LS.game.throwGrenade(unit, x, y);
+    if (!r.ok) { LS.game.log(r.reason); LS.state.throwMode = null; LS.render.draw(); return; }
+    LS.state.throwMode = null;
+    LS.state.busy = true;
+    LS.ui.update();
+    LS.render.throwArc(unit, { x, y }, () => {
+      LS.state.busy = false;
+      LS.render.draw();
+    });
+  }
+
+  // detonate all cooked grenades (end of turn), one after another, then run `done`
+  function detonateLive(done) {
+    LS.state.busy = true;
+    LS.ui.update();
+    const grenades = LS.state.liveGrenades.slice();
+    LS.state.liveGrenades = [];
+    let i = 0;
+    function next() {
+      if (i >= grenades.length) {
+        LS.game.checkWin();
+        LS.render.draw();
+        setTimeout(() => { LS.state.busy = false; done(); }, 350); // let the aftermath land before handoff
+        return;
+      }
+      const g = grenades[i++];
+      const hits = LS.game.detonateGrenade(g);
+      LS.render.explosionFx(g, hits, () => {
+        LS.render.draw();
+        if (LS.config.anim.enabled) setTimeout(next, 140); else next();
+      });
+    }
+    next();
   }
 
   // break a window with a shot from range: resolve, animate the bolt shattering it, redraw
@@ -214,9 +258,31 @@ LS.input = (function () {
     svg.addEventListener('mousemove', onMove);
     svg.addEventListener('mouseleave', () => { hoverDir = -1; LS.render.drawFacing(-1); LS.render.drawHover(null, null); });
     document.getElementById('end-turn').addEventListener('click', () => {
-      if (LS.state.busy) return;
-      LS.game.endTurn();
+      if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+      if (LS.state.liveGrenades.length) {
+        detonateLive(() => { LS.game.endTurn(); LS.render.draw(); });
+      } else {
+        LS.game.endTurn();
+        LS.render.draw();
+      }
+    });
+    document.getElementById('throw-btn').addEventListener('click', () => {
+      if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+      const sel = LS.game.selected();
+      if (!sel || sel.team !== LS.state.activeTeam) return;
+      if (LS.state.throwMode) {
+        LS.state.throwMode = null;
+      } else if (sel.grenades <= 0) {
+        LS.game.log('No grenades left.');
+      } else if (sel.ap < LS.config.grenade.throwCost) {
+        LS.game.log('Not enough AP to throw.');
+      } else {
+        LS.state.throwMode = sel.id;
+      }
       LS.render.draw();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); }
     });
     // click a roster pip to select that soldier (if it's yours and your turn)
     document.querySelector('.rosters').addEventListener('click', (e) => {
