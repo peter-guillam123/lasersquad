@@ -69,6 +69,17 @@ LS.render = (function () {
         stroke: isCur ? '#7a5d00' : 'none', 'stroke-width': isCur ? 1 : 0,
       }, g);
     }
+
+    // a ✕ badge on each open door orthogonally next to the soldier — click it to close (geometry mirrored in input.js)
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].forEach(([dx, dy]) => {
+      const x = u.x + dx, y = u.y + dy;
+      if (LS.los.isDoor(x, y) && LS.los.doorOpen(x, y)) {
+        const bx = x * T + T * 0.78, by = y * T + T * 0.22, r = T * 0.17;
+        el('circle', { cx: bx, cy: by, r, fill: 'rgba(18,20,26,0.92)', stroke: C.select, 'stroke-width': 1.5 }, layers.facing);
+        el('line', { x1: bx - r * 0.45, y1: by - r * 0.45, x2: bx + r * 0.45, y2: by + r * 0.45, stroke: C.select, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, layers.facing);
+        el('line', { x1: bx + r * 0.45, y1: by - r * 0.45, x2: bx - r * 0.45, y2: by + r * 0.45, stroke: C.select, 'stroke-width': 1.6, 'stroke-linecap': 'round' }, layers.facing);
+      }
+    });
   }
 
   function drawTerrain(T, C) {
@@ -145,7 +156,6 @@ LS.render = (function () {
       reach.cost.forEach((c, k) => {
         if (c === 0) return; // skip the unit's own tile
         const x = k % LS.config.cols, y = Math.floor(k / LS.config.cols);
-        if (LS.los.isDoor(x, y)) return; // open doors are transit-only, never a destination
         // full colour if you'd still have AP banked to react; grey if moving here spends you out
         const fill = (sel.ap - c) >= fireCost ? armedFill : C.reachSpent;
         // red outline = a spotted enemy can shoot you on this tile (fair: only from enemies you can see)
@@ -245,9 +255,10 @@ LS.render = (function () {
     const sel = LS.game.selected();
     if (!sel) return;
 
-    // door / window action hints
-    if (LS.los.isDoor(tx, ty) && Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1 && sel.ap >= LS.config.ap.door) {
-      label(LS.los.doorOpen(tx, ty) ? 'close' : 'open', tx * T + T / 2, ty * T - 6, C.select, T); return;
+    // door / window action hints. A closed door shows 'open'; an open door falls through to the
+    // step-in cost (you walk into it), and closing is the ✕ badge, handled separately.
+    if (LS.los.isDoor(tx, ty) && !LS.los.doorOpen(tx, ty) && Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1 && sel.ap >= LS.config.ap.door) {
+      label('open', tx * T + T / 2, ty * T - 6, C.select, T); return;
     }
     if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) {
       const adj = Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1;

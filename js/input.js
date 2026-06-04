@@ -30,12 +30,33 @@ LS.input = (function () {
     return LS.util.nearestDir(dx, dy);
   }
 
+  // is this point on the ✕ close-badge of an open door next to the selected soldier? (mirrors render)
+  function closeBadgeAt(px, py) {
+    const sel = LS.game.selected();
+    if (!sel || sel.team !== LS.state.activeTeam) return null;
+    const T = LS.config.tile;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const x = sel.x + dx, y = sel.y + dy;
+      if (LS.los.isDoor(x, y) && LS.los.doorOpen(x, y)) {
+        if (Math.hypot(px - (x * T + T * 0.78), py - (y * T + T * 0.22)) <= T * 0.24) return { x, y };
+      }
+    }
+    return null;
+  }
+
   function onClick(e) {
     LS.sound.ensure(); // first real click unlocks audio (browser autoplay rules)
     if (LS.state.busy || LS.state.over || LS.state.handoff) return;
     const { px, py } = pointFromEvent(e);
     const rd = ringDirAt(px, py);
     if (rd >= 0) { LS.game.selected().facing = rd; LS.game.observe(); LS.render.draw(); return; }
+    const cb = closeBadgeAt(px, py);
+    if (cb) {
+      const r = LS.game.toggleDoor(LS.game.selected(), cb.x, cb.y);
+      if (r.ok) LS.sound.play('door'); else if (r.reason) LS.game.log(r.reason);
+      LS.render.draw();
+      return;
+    }
     const t = tileFromEvent(e);
     if (!t) return;
     handle(t.x, t.y);
@@ -55,8 +76,10 @@ LS.input = (function () {
     }
 
     if (sel) {
-      // doors: click an adjacent door to open/close it
-      if (LS.los.isDoor(tx, ty)) {
+      // closed door: click it (from next to it) to open. An OPEN door is a normal tile —
+      // it falls through to the move logic so you can step into and stand in the doorway;
+      // closing is done with the ✕ badge (handled in onClick).
+      if (LS.los.isDoor(tx, ty) && !LS.los.doorOpen(tx, ty)) {
         const r = LS.game.toggleDoor(sel, tx, ty);
         if (r.ok) LS.sound.play('door'); else if (r.reason) LS.game.log(r.reason);
         LS.render.draw();
