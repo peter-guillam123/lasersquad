@@ -97,10 +97,12 @@ LS.render = (function () {
         else if (floorLike) fill = (x + y) % 2 ? C.floorB : C.floorA;
         else fill = (x + y) % 2 ? C.groundB : C.groundA;           // '.' ground
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
+        if (ch === '_' && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
+          el('rect', { x: x * T + 3, y: y * T + 3, width: T - 6, height: T - 6, rx: 3, fill: 'none', stroke: 'rgba(0,0,0,0.16)', 'stroke-width': 1 }, layers.terrain);
 
         if (rubbled) drawRubble(x, y, T, C);
         else if (cratered) drawCrater(x, y, T, C);
-        else if (ch === '#') el('rect', { x: x * T, y: y * T, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
+        else if (ch === '#') drawWall(x, y, T, C);
         else if (ch === 'x') drawBreakableWall(x, y, T, C);
         else if (ch === 'D' || ch === 'R') drawDoor(x, y, T, C, ch === 'R');
         else if (ch === 'W') drawWindow(x, y, T, C);
@@ -110,9 +112,21 @@ LS.render = (function () {
     }
   }
 
+  // reinforced wall: top light bevel, bottom shade, panel seams + rivets (depth, but muted)
+  function drawWall(x, y, T, C) {
+    const cx = x * T, cy = y * T;
+    el('rect', { x: cx, y: cy, width: T, height: T * 0.24, fill: C.wallTop }, layers.terrain);
+    el('rect', { x: cx, y: cy + T * 0.82, width: T, height: T * 0.18, fill: 'rgba(0,0,0,0.22)' }, layers.terrain);
+    el('line', { x1: cx + T * 0.5, y1: cy + T * 0.24, x2: cx + T * 0.5, y2: cy + T, stroke: 'rgba(0,0,0,0.28)', 'stroke-width': 1 }, layers.terrain);
+    el('line', { x1: cx, y1: cy + T * 0.6, x2: cx + T, y2: cy + T * 0.6, stroke: 'rgba(255,255,255,0.045)', 'stroke-width': 1 }, layers.terrain);
+    el('circle', { cx: cx + T * 0.17, cy: cy + T * 0.42, r: T * 0.03, fill: C.wallTop }, layers.terrain);
+    el('circle', { cx: cx + T * 0.83, cy: cy + T * 0.42, r: T * 0.03, fill: C.wallTop }, layers.terrain);
+  }
+
   function drawBreakableWall(x, y, T, C) {
     const cx = x * T, cy = y * T;
     el('rect', { x: cx, y: cy, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
+    el('rect', { x: cx, y: cy + T * 0.84, width: T, height: T * 0.16, fill: 'rgba(0,0,0,0.18)' }, layers.terrain);
     el('polyline', { points: `${cx + T * 0.3},${cy} ${cx + T * 0.44},${cy + T * 0.4} ${cx + T * 0.34},${cy + T * 0.72} ${cx + T * 0.46},${cy + T}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.5 }, layers.terrain);
     el('polyline', { points: `${cx + T * 0.72},${cy + T * 0.12} ${cx + T * 0.6},${cy + T * 0.5} ${cx + T * 0.74},${cy + T * 0.85}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.2 }, layers.terrain);
     // a wall that's taken a blast but held looks scorched and more cracked (HP itself stays hidden)
@@ -133,6 +147,7 @@ LS.render = (function () {
 
   function drawCrater(x, y, T, C) {
     const cx = x * T + T / 2, cy = y * T + T / 2;
+    el('circle', { cx, cy, r: T * 0.46, fill: 'none', stroke: 'rgba(70,48,22,0.5)', 'stroke-width': 3 }, layers.terrain); // scorched rim
     el('circle', { cx, cy, r: T * 0.42, fill: C.crater, stroke: C.craterEdge, 'stroke-width': 2 }, layers.terrain);
     el('circle', { cx, cy, r: T * 0.24, fill: '#000', opacity: 0.5 }, layers.terrain);
   }
@@ -166,6 +181,9 @@ LS.render = (function () {
           el('circle', { cx: lx + lw * fx, cy: ly + lh * fy, r: T * 0.035, fill: frame }, layers.terrain));
       } else {
         el('circle', { cx: cx + (vertical ? T * 0.40 : T * 0.5), cy: cy + (vertical ? T * 0.5 : T * 0.40), r: T * 0.05, fill: frame }, layers.terrain);
+        [0.34, 0.66].forEach(f => vertical    // wooden planks
+          ? el('line', { x1: lx, y1: ly + lh * f, x2: lx + lw, y2: ly + lh * f, stroke: frame, 'stroke-width': 1 }, layers.terrain)
+          : el('line', { x1: lx + lw * f, y1: ly, x2: lx + lw * f, y2: ly + lh, stroke: frame, 'stroke-width': 1 }, layers.terrain));
       }
     }
   }
@@ -182,6 +200,7 @@ LS.render = (function () {
       el('rect', { x: px, y: py, width: pw, height: ph, fill: C.glass, stroke: C.glassEdge, 'stroke-width': 2 }, layers.terrain);
       el('line', { x1: px + pw / 2, y1: py, x2: px + pw / 2, y2: py + ph, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
       el('line', { x1: px, y1: py + ph / 2, x2: px + pw, y2: py + ph / 2, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
+      el('line', { x1: px + pw * 0.22, y1: py + ph * 0.12, x2: px + pw * 0.5, y2: py + ph * 0.46, stroke: 'rgba(255,255,255,0.4)', 'stroke-width': 2, 'stroke-linecap': 'round' }, layers.terrain); // glint
     } else {
       el('rect', { x: px, y: py, width: pw, height: ph, fill: '#10131a', stroke: C.glassEdge, 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }, layers.terrain);
       el('polygon', { points: `${px},${py} ${px + pw * 0.32},${py} ${px},${py + ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
