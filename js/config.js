@@ -43,7 +43,7 @@ LS.config = {
 
   anim: {
     enabled: true,
-    msPerTile: 85,     // movement glide speed
+    msPerTile: 150,    // movement glide speed (slower = easier to read the move)
   },
 
   colors: {

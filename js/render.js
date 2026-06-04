@@ -353,10 +353,70 @@ LS.render = (function () {
     ['back', false], ['backThreeq', false], ['side', false], ['threeqFront', false],
     ['front', false], ['threeqFront', true], ['side', true], ['backThreeq', true],
   ];
-  function drawMarine(parent, T, facing, team) {
+  // gentle always-on "breathing" bob (SMIL), phase-offset per soldier so they don't bob in unison
+  function idleBob(g, id) {
+    if (!LS.config.anim.enabled) return;
+    const phase = ([...(id || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 24) / 10;
+    const a = document.createElementNS(SVGNS, 'animateTransform');
+    a.setAttribute('attributeName', 'transform'); a.setAttribute('type', 'translate');
+    a.setAttribute('values', '0 0; 0 -1.4; 0 0'); a.setAttribute('dur', '2.4s');
+    a.setAttribute('repeatCount', 'indefinite'); a.setAttribute('begin', `-${phase}s`);
+    a.setAttribute('calcMode', 'spline'); a.setAttribute('keyTimes', '0;0.5;1');
+    a.setAttribute('keySplines', '0.45 0 0.55 1;0.45 0 0.55 1');
+    g.appendChild(a);
+  }
+  // weapon recoil: kick the figure backward (opposite its facing), then ease home
+  function recoil(ag, fdx, fdy) {
+    if (!ag) return;
+    const L = Math.hypot(fdx, fdy) || 1, bx = -fdx / L * 4.5, by = -fdy / L * 4.5;
+    const out = 90, back = 220; let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts; const e = ts - start; let k;
+      if (e < out) k = e / out; else if (e < out + back) k = 1 - (e - out) / back; else { ag.removeAttribute('transform'); return; }
+      ag.setAttribute('transform', `translate(${bx * k},${by * k})`);
+      requestAnimationFrame(f);
+    });
+  }
+  // throw: a small wind-up back, then a lunge toward the target
+  function throwLunge(ag, dx, dy) {
+    if (!ag) return;
+    const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+    const wind = 190, fwd = 230, wb = 3.5, fw = 5; let start = null;
+    requestAnimationFrame(function f(ts) {
+      if (start === null) start = ts; const e = ts - start; let d;
+      if (e < wind) d = -wb * (e / wind);
+      else if (e < wind + fwd) d = -wb + (wb + fw) * ((e - wind) / fwd);
+      else { ag.removeAttribute('transform'); return; }
+      ag.setAttribute('transform', `translate(${ux * d},${uy * d})`);
+      requestAnimationFrame(f);
+    });
+  }
+  function drawMarine(parent, T, facing, team, id) {
     const [pose, mirror] = FACING_POSE[facing] || ['front', false];
-    const inner = el('g', mirror ? { transform: 'scale(-1,1)' } : {}, parent);
-    MARINE_POSES[pose](inner, T, teamPal(team));
+    const animG = el('g', {}, parent);            // idle breathing (SMIL)
+    idleBob(animG, id);
+    const actionG = el('g', {}, animG);           // walk / recoil / throw (JS)
+    const mir = el('g', mirror ? { transform: 'scale(-1,1)' } : {}, actionG);
+    MARINE_POSES[pose](mir, T, teamPal(team));
+    return actionG;
+  }
+
+  // paint one soldier (selection ring + sprite + health bar) into its group; returns its action group
+  function paintUnit(g, u, T, C) {
+    if (LS.state.selectedId === u.id) {
+      el('circle', { cx: 0, cy: 0, r: T * 0.47, fill: 'none', stroke: C.select, 'stroke-width': 2.5, 'stroke-dasharray': '5 4' }, g);
+    }
+    const action = drawMarine(g, T, u.facing, u.team, u.id);
+    const bw = T * 0.5, bh = 4, bx = -bw / 2, by = -T * 0.56;
+    el('rect', { x: bx, y: by, width: bw, height: bh, rx: 2, fill: 'rgba(0,0,0,0.55)' }, g);
+    el('rect', { x: bx, y: by, width: bw * (u.hp / u.maxHp), height: bh, rx: 2, fill: u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a' }, g);
+    return action;
+  }
+  // re-draw a single soldier in place (used to turn it to a new facing mid-move, without moving it)
+  function refaceUnit(u) {
+    const ue = unitEls[u.id]; if (!ue) return;
+    while (ue.g.firstChild) ue.g.removeChild(ue.g.firstChild);
+    ue.action = paintUnit(ue.g, u, LS.config.tile, LS.config.colors);
   }
 
   function drawUnits(T, C) {
@@ -365,16 +425,8 @@ LS.render = (function () {
     const active = LS.state.activeTeam;
     LS.state.units.filter(u => u.alive).forEach(u => {
       if (u.team !== active && !vision.has(LS.game.key(u.x, u.y))) return; // hidden by fog
-      const cx = u.x * T + T / 2, cy = u.y * T + T / 2;
-      const g = el('g', { transform: `translate(${cx},${cy})` }, layers.units);
-      unitEls[u.id] = g;
-      if (LS.state.selectedId === u.id) {
-        el('circle', { cx: 0, cy: 0, r: T * 0.47, fill: 'none', stroke: C.select, 'stroke-width': 2.5, 'stroke-dasharray': '5 4' }, g);
-      }
-      drawMarine(g, T, u.facing, u.team);
-      const bw = T * 0.5, bh = 4, bx = -bw / 2, by = -T * 0.56;
-      el('rect', { x: bx, y: by, width: bw, height: bh, rx: 2, fill: 'rgba(0,0,0,0.55)' }, g);
-      el('rect', { x: bx, y: by, width: bw * (u.hp / u.maxHp), height: bh, rx: 2, fill: u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a' }, g);
+      const g = el('g', { transform: `translate(${u.x * T + T / 2},${u.y * T + T / 2})` }, layers.units);
+      unitEls[u.id] = { g, action: paintUnit(g, u, T, C) };
     });
     drawGhosts(T, C, active);
   }
@@ -468,7 +520,7 @@ LS.render = (function () {
 
   // glide a unit across one tile, then call done() — lets the move pause for reaction checks between tiles
   function animateStep(unit, from, to, done) {
-    const g = unitEls[unit.id], T = LS.config.tile;
+    const ue = unitEls[unit.id], g = ue && ue.g, action = ue && ue.action, T = LS.config.tile;
     const x1 = to.x * T + T / 2, y1 = to.y * T + T / 2;
     if (!g || !LS.config.anim.enabled) { if (g) g.setAttribute('transform', `translate(${x1},${y1})`); done(); return; }
     const x0 = from.x * T + T / 2, y0 = from.y * T + T / 2, dur = LS.config.anim.msPerTile;
@@ -477,7 +529,8 @@ LS.render = (function () {
       if (start === null) start = ts;
       let p = (ts - start) / dur; if (p > 1) p = 1;
       g.setAttribute('transform', `translate(${x0 + (x1 - x0) * p},${y0 + (y1 - y0) * p})`);
-      if (p < 1) requestAnimationFrame(f); else done();
+      if (action) action.setAttribute('transform', `translate(0,${-Math.abs(Math.sin(p * Math.PI * 3)) * 2.5})`); // walk bob
+      if (p < 1) requestAnimationFrame(f); else { if (action) action.removeAttribute('transform'); done(); }
     }
     requestAnimationFrame(f);
   }
@@ -486,6 +539,8 @@ LS.render = (function () {
   function shotFx(shooter, target, result, done) {
     LS.sound.play('fire');
     if (!LS.config.anim.enabled) { done && done(); return; }
+    const sa = unitEls[shooter.id] && unitEls[shooter.id].action;
+    if (sa) { const f = LS.DIRS[shooter.facing]; recoil(sa, f.dx, f.dy); }
     const T = LS.config.tile, C = LS.config.colors;
     const sx = shooter.x * T + T / 2, sy = shooter.y * T + T / 2;
     const tcx = target.x * T + T / 2, tcy = target.y * T + T / 2;
@@ -502,7 +557,7 @@ LS.render = (function () {
     fade(el('circle', { cx: sx, cy: sy, r: T * 0.16, fill: '#ffe9a8', opacity: 0.95 }, layers.fx), 180);
 
     const bolt = el('line', { x1: sx, y1: sy, x2: sx, y2: sy, stroke: '#ffe08a', 'stroke-width': 3, 'stroke-linecap': 'round' }, layers.fx);
-    const dur = 150; let start = null;
+    const dur = 190; let start = null;
     function fly(ts) {
       if (start === null) start = ts;
       let p = (ts - start) / dur; if (p > 1) p = 1;
@@ -611,6 +666,8 @@ LS.render = (function () {
     const T = LS.config.tile, C = LS.config.colors;
     LS.sound.play('throw');
     if (!LS.config.anim.enabled) { done && done(); return; }
+    const ta = unitEls[from.id] && unitEls[from.id].action;
+    if (ta) throwLunge(ta, to.x - from.x, to.y - from.y);
     const x0 = from.x * T + T / 2, y0 = from.y * T + T / 2;
     const x2 = to.x * T + T / 2, y2 = to.y * T + T / 2;
     const arcH = Math.min(T * 2.2, Math.hypot(x2 - x0, y2 - y0) * 0.5 + T * 0.6);
@@ -642,5 +699,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, shotFx, glassFx, throwArc, explosionFx, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, unitEls };
 })();

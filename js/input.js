@@ -206,6 +206,18 @@ LS.input = (function () {
   }
 
   // walk a path one tile at a time, halting if a reaction shot lands (halt-on-spot)
+  // rotate a soldier toward `target` facing through the in-between poses, then run done
+  function turnTo(unit, target, done) {
+    if (unit.facing === target) return done();
+    const diff = (target - unit.facing + 8) % 8, step = diff <= 4 ? 1 : -1;
+    (function rot() {
+      if (unit.facing === target) return done();
+      unit.facing = (unit.facing + step + 8) % 8;
+      LS.render.refaceUnit(unit);
+      setTimeout(rot, 55);
+    })();
+  }
+
   function beginMove(unit, path) {
     LS.state.busy = true;
     LS.ui.update();
@@ -213,12 +225,16 @@ LS.input = (function () {
     function stepOne() {
       if (i >= path.length) return endMove();
       const from = path[i - 1], to = path[i];
-      LS.render.animateStep(unit, from, to, () => {
+      const dir = LS.util.dirIndex(to.x - from.x, to.y - from.y);
+      const glide = () => LS.render.animateStep(unit, from, to, () => {
         LS.game.applyStep(unit, from, to);
         const reactors = LS.game.findReactors(unit);
         if (reactors.length) resolveReactions(unit, reactors, endMove);
         else { i++; stepOne(); }
       });
+      // turn to face the way we're about to walk first; step straight off if already facing it
+      if (LS.config.anim.enabled && unit.facing !== dir) turnTo(unit, dir, glide);
+      else { unit.facing = dir; glide(); }
     }
     stepOne();
   }
