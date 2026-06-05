@@ -1,6 +1,7 @@
 // input.js — all mouse interaction. Click → mutate state via LS.game → redraw.
 LS.input = (function () {
   let svg, hoverTile = { x: null, y: null }, hoverDir = -1, hoverQueued = false;
+  let drag = null, suppressClick = false; // drag-to-pan state
 
   function pointFromEvent(e) {
     const rect = svg.getBoundingClientRect();
@@ -46,6 +47,7 @@ LS.input = (function () {
   }
 
   function onClick(e) {
+    if (suppressClick) { suppressClick = false; return; } // a drag-to-pan just ended; not a real click
     LS.sound.ensure(); // first real click unlocks audio (browser autoplay rules)
     if (LS.state.busy || LS.state.over || LS.state.handoff) return;
     // grenade aiming intercepts everything: click a valid tile to throw, anywhere else to cancel
@@ -276,7 +278,30 @@ LS.input = (function () {
     LS.render.draw();
   }
 
+  // --- drag to pan the camera (a plain click still selects/moves) ----------
+  const DRAG_THRESHOLD = 5; // px before a press counts as a pan rather than a click
+  function onDragStart(e) {
+    if (e.button !== 0 || LS.state.busy || LS.state.over || LS.state.handoff) return;
+    drag = { sx: e.clientX, sy: e.clientY, camX: LS.state.cam.x, camY: LS.state.cam.y, moved: false };
+  }
+  function onDragMove(e) {
+    if (!drag) return;
+    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+    if (!drag.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return;
+    drag.moved = true;
+    svg.style.cursor = 'grabbing';
+    const rect = svg.getBoundingClientRect(), { tile, view } = LS.config;
+    // screen pixels -> world pixels; drag right => map slides right => camera moves left
+    LS.render.setCamera(drag.camX - dx / rect.width * (view.cols * tile), drag.camY - dy / rect.height * (view.rows * tile));
+  }
+  function onDragEnd() {
+    if (drag && drag.moved) suppressClick = true; // swallow the click that the browser fires next
+    drag = null;
+    if (svg) svg.style.cursor = '';
+  }
+
   function onMove(e) {
+    if (drag && drag.moved) return; // mid-drag: don't fight the pan with hover updates
     if (LS.state.busy || LS.state.handoff) return;
     const { px, py } = pointFromEvent(e);
     const rd = ringDirAt(px, py);
@@ -329,7 +354,10 @@ LS.input = (function () {
     svg = document.getElementById('board');
     svg.addEventListener('click', onClick);
     svg.addEventListener('mousemove', onMove);
-    svg.addEventListener('mouseleave', () => { hoverDir = -1; LS.render.drawFacing(-1); LS.render.drawHover(null, null); });
+    svg.addEventListener('mousedown', onDragStart);
+    window.addEventListener('mousemove', onDragMove);
+    window.addEventListener('mouseup', onDragEnd);
+    svg.addEventListener('mouseleave', () => { if (!drag) { hoverDir = -1; LS.render.drawFacing(-1); LS.render.drawHover(null, null); } });
     document.getElementById('end-turn').addEventListener('click', () => {
       if (LS.state.busy || LS.state.over || LS.state.handoff) return;
       if (LS.state.liveGrenades.length) {
