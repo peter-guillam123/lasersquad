@@ -124,6 +124,13 @@ LS.game = (function () {
     return teamVision(LS.state.activeTeam).has(key(u.x, u.y));
   }
 
+  // ids of living enemies a team can currently see — used to spot fresh contacts mid-move
+  function visibleEnemyIds(team) {
+    const vis = teamVision(team), ids = new Set();
+    LS.state.units.forEach(e => { if (e.alive && e.team !== team && vis.has(key(e.x, e.y))) ids.add(e.id); });
+    return ids;
+  }
+
   // update the active team's last-seen memory of the enemy
   function observe() {
     const team = LS.state.activeTeam;
@@ -383,7 +390,7 @@ LS.game = (function () {
     newGame, key, unitAt, unitById, selected, teamUnits, isPassable,
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
-    teamVision, isVisible, observe, enemyDangerSet,
+    teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet,
     toggleDoor, smashWindowMelee, shootWindow,
     canThrowTo, throwGrenade, blastTiles, detonateGrenade, breakWindow,
     endTurn, resumeTurn, checkWin, log,

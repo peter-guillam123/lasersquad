@@ -52,6 +52,10 @@ LS.sound = (function () {
     else if (kind === 'glass') { noise({ dur: 0.18, vol: 0.07 }); tone({ freq: 2400, freqEnd: 1400, type: 'triangle', dur: 0.12, vol: 0.04 }); }
     else if (kind === 'throw') tone({ freq: 520, freqEnd: 900, type: 'sine', dur: 0.18, vol: 0.04 });
     else if (kind === 'boom') { noise({ dur: 0.4, vol: 0.16 }); tone({ freq: 90, freqEnd: 40, type: 'sawtooth', dur: 0.4, vol: 0.14 }); }
+    else if (kind === 'contact') { // a two-note alert sting for spotting an enemy
+      tone({ freq: 430, type: 'square', dur: 0.10, vol: 0.07 });
+      tone({ freq: 700, type: 'square', dur: 0.13, vol: 0.07, delay: 0.11 });
+    }
   }
 
   function toggle() { muted = !muted; if (!muted) ensure(); return muted; }

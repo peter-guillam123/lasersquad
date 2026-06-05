@@ -39,6 +39,58 @@ LS.render = (function () {
     if (wx < cam.x + m || wx > cam.x + V.cols * T - m || wy < cam.y + m || wy > cam.y + V.rows * T - m) centerOn(wx, wy);
   }
 
+  const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  // is a world point currently within the visible window (with a tile of margin)?
+  function inView(wx, wy) {
+    const T = LS.config.tile, V = LS.config.view, cam = LS.state.cam, m = T;
+    return wx >= cam.x + m && wx <= cam.x + V.cols * T - m && wy >= cam.y + m && wy <= cam.y + V.rows * T - m;
+  }
+  // tween the camera to centre on a world point (instant if motion is reduced / anim off)
+  function panToCenter(wx, wy, ms, done) {
+    const T = LS.config.tile, V = LS.config.view;
+    const tx = wx - V.cols * T / 2, ty = wy - V.rows * T / 2;
+    if (reduceMotion() || !LS.config.anim.enabled || ms <= 0) { setCamera(tx, ty); done && done(); return; }
+    const x0 = LS.state.cam.x, y0 = LS.state.cam.y;
+    let start = null;
+    requestAnimationFrame(function f(t) {
+      if (start === null) start = t;
+      let p = (t - start) / ms; if (p > 1) p = 1;
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2; // ease in-out
+      setCamera(x0 + (tx - x0) * e, y0 + (ty - y0) * e);
+      if (p < 1) requestAnimationFrame(f); else { done && done(); }
+    });
+  }
+  // a pulsing red ring to call out a newly spotted enemy
+  function flashContact(x, y) {
+    const T = LS.config.tile, cx = x * T + T / 2, cy = y * T + T / 2;
+    const ring = el('circle', { cx, cy, r: T * 0.2, fill: 'none', stroke: LS.config.colors.red, 'stroke-width': 3, opacity: 0.95 }, layers.fx);
+    el('animate', { attributeName: 'r', values: `${T * 0.2};${T * 0.62};${T * 0.2}`, dur: '0.7s', repeatCount: '2' }, ring);
+    el('animate', { attributeName: 'opacity', values: '0.95;0.25;0.95', dur: '0.7s', repeatCount: '2' }, ring);
+    setTimeout(() => ring.remove(), 1500);
+  }
+  // "contact!" — the walk has halted on spotting an enemy. Flash it; if it's off-screen,
+  // scroll to it and back to the soldier; if it's already on screen, just hold a beat.
+  function contactMoment(unit, contacts, done) {
+    draw(); // paint the board first so the newly-spotted enemy is on screen before the camera arrives
+    LS.sound.play('contact');
+    const T = LS.config.tile;
+    const primary = contacts.slice().sort((a, b) =>
+      Math.hypot(a.x - unit.x, a.y - unit.y) - Math.hypot(b.x - unit.x, b.y - unit.y))[0];
+    contacts.forEach(c => flashContact(c.x, c.y));
+    const ex = primary.x * T + T / 2, ey = primary.y * T + T / 2;
+    const ux = unit.x * T + T / 2, uy = unit.y * T + T / 2;
+    const dwell = 850;
+    if (reduceMotion()) { // no sliding: jump-cut to the enemy only if it's off-screen, then back
+      const off = !inView(ex, ey);
+      if (off) centerOn(ex, ey);
+      setTimeout(() => { if (off) centerOn(ux, uy); done(); }, dwell);
+    } else if (inView(ex, ey)) {
+      setTimeout(done, dwell); // already on screen — hold a beat on the flash
+    } else {
+      panToCenter(ex, ey, 420, () => setTimeout(() => panToCenter(ux, uy, 380, done), dwell));
+    }
+  }
+
   function clear(g) { while (g.firstChild) g.removeChild(g.firstChild); }
 
   let vision = new Set(), danger = new Set();   // active team's current sight + known danger (set in draw)
@@ -783,5 +835,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, unitEls };
 })();
