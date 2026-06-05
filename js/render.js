@@ -68,6 +68,13 @@ LS.render = (function () {
     el('animate', { attributeName: 'opacity', values: '0.95;0.25;0.95', dur: '0.7s', repeatCount: '2' }, ring);
     setTimeout(() => ring.remove(), 1500);
   }
+  // bring a tile into view if it isn't already (used by the AI to show an off-screen shot)
+  function focusTile(x, y, done) {
+    const T = LS.config.tile, wx = x * T + T / 2, wy = y * T + T / 2;
+    if (inView(wx, wy)) { done && done(); return; }
+    panToCenter(wx, wy, 360, done);
+  }
+
   // "contact!" — the walk has halted on spotting an enemy. Flash it; if it's off-screen,
   // scroll to it and back to the soldier; if it's already on screen, just hold a beat.
   function contactMoment(unit, contacts, done) {
@@ -555,12 +562,16 @@ LS.render = (function () {
     ue.action = paintUnit(ue.g, u, LS.config.tile, LS.config.colors);
   }
 
+  const revealed = new Set(); // unit ids forced visible regardless of fog (e.g. an AI unit firing)
+  function reveal(id) { revealed.add(id); }
+  function unreveal(id) { revealed.delete(id); }
+
   function drawUnits(T, C) {
     clear(layers.units);
     for (const id in unitEls) delete unitEls[id];
     const viewer = LS.game.viewTeam();
     LS.state.units.filter(u => u.alive).forEach(u => {
-      if (u.team !== viewer && !vision.has(LS.game.key(u.x, u.y))) return; // hidden by fog
+      if (u.team !== viewer && !vision.has(LS.game.key(u.x, u.y)) && !revealed.has(u.id)) return; // hidden by fog
       const g = el('g', { transform: `translate(${u.x * T + T / 2},${u.y * T + T / 2})` }, layers.units);
       unitEls[u.id] = { g, action: paintUnit(g, u, T, C) };
     });
@@ -836,5 +847,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, focusTile, reveal, unreveal, unitEls };
 })();

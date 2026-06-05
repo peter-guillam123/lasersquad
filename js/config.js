@@ -6,7 +6,7 @@ LS.config = {
   rows: 18,
   tile: 44,            // pixel size of one grid square
   view: { cols: 16, rows: 12 }, // visible window onto the map (in tiles)
-  aiTeams: [],         // teams played by the computer (e.g. ['red']); empty = hot-seat two-player
+  aiTeams: ['red'],    // teams played by the computer; empty = hot-seat two-player
 
   ap: {
     max: 20,           // action points each unit gets per turn

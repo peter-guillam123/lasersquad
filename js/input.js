@@ -302,6 +302,26 @@ LS.input = (function () {
     LS.render.centerOn(ax * T + T / 2, ay * T + T / 2);
   }
 
+  // called after a turn ends: hand to the AI, the next human, or the pass-the-device screen
+  function afterTurnChange() {
+    if (LS.state.over) { LS.render.draw(); return; }
+    const active = LS.state.activeTeam;
+    if (LS.game.isAI(active)) {            // computer's turn: no handoff, just play it
+      LS.state.handoff = false;
+      LS.game.resumeTurn();
+      LS.render.draw();
+      LS.ai.takeTurn(() => { LS.game.endTurn(); afterTurnChange(); });
+      return;
+    }
+    if (LS.config.aiTeams && LS.config.aiTeams.length) { // vs-computer, human's turn: no device to pass
+      LS.state.handoff = false;
+      LS.game.resumeTurn();
+      centerOnTeam(active);
+    }
+    // hot-seat: endTurn left handoff=true, so the pass-the-device screen shows
+    LS.render.draw();
+  }
+
   function init() {
     svg = document.getElementById('board');
     svg.addEventListener('click', onClick);
@@ -310,10 +330,10 @@ LS.input = (function () {
     document.getElementById('end-turn').addEventListener('click', () => {
       if (LS.state.busy || LS.state.over || LS.state.handoff) return;
       if (LS.state.liveGrenades.length) {
-        detonateLive(() => { LS.game.endTurn(); LS.render.draw(); });
+        detonateLive(() => { LS.game.endTurn(); afterTurnChange(); });
       } else {
         LS.game.endTurn();
-        LS.render.draw();
+        afterTurnChange();
       }
     });
     document.getElementById('throw-btn').addEventListener('click', () => {
