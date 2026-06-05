@@ -350,6 +350,19 @@ LS.input = (function () {
     LS.render.draw();
   }
 
+  function showStartScreen() {
+    document.getElementById('start-screen').style.display = 'flex';
+  }
+  // begin a game in the chosen mode (aiTeams: [] = hot-seat, ['red'] = vs computer)
+  function startGame(aiTeams) {
+    LS.config.aiTeams = aiTeams;
+    LS.game.newGame();
+    LS.game.refreshReach();
+    LS.render.centerOn(LS.config.tile * 3, LS.config.tile * 9.5); // frame the blue squad
+    LS.render.draw();
+    document.getElementById('start-screen').style.display = 'none';
+  }
+
   function init() {
     svg = document.getElementById('board');
     svg.addEventListener('click', onClick);
@@ -399,12 +412,9 @@ LS.input = (function () {
         LS.render.draw();
       }
     });
-    document.getElementById('restart').addEventListener('click', () => {
-      LS.game.newGame();
-      LS.game.refreshReach();
-      LS.render.centerOn(LS.config.tile * 3, LS.config.tile * 9.5);
-      LS.render.draw();
-    });
+    document.getElementById('restart').addEventListener('click', showStartScreen); // back to the menu to re-pick a mode
+    document.getElementById('start-hotseat').addEventListener('click', () => { LS.sound.ensure(); startGame([]); });
+    document.getElementById('start-ai').addEventListener('click', () => { LS.sound.ensure(); startGame(['red']); });
     document.getElementById('handoff-btn').addEventListener('click', () => {
       LS.game.resumeTurn();
       centerOnTeam(LS.state.activeTeam); // frame the squad whose turn it now is
@@ -416,5 +426,5 @@ LS.input = (function () {
     });
   }
 
-  return { init };
+  return { init, showStartScreen };
 })();
