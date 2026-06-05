@@ -327,26 +327,44 @@ LS.input = (function () {
     LS.render.centerOn(ax * T + T / 2, ay * T + T / 2);
   }
 
-  // called after a turn ends: hand to the AI, the next human, or the pass-the-device screen
+  // a brief team-coloured "[TEAM] turn" sweep that auto-dismisses, then runs `done`
+  function showTurnIntro(team, sub, done) {
+    const ti = document.getElementById('turn-intro'), lbl = ti.querySelector('.ti-team');
+    lbl.textContent = team.toUpperCase();
+    lbl.className = 'ti-team ' + team;
+    ti.querySelector('.ti-sub').textContent = sub;
+    ti.classList.remove('show'); void ti.offsetWidth; // restart the animation
+    ti.classList.add('show');
+    setTimeout(() => { ti.classList.remove('show'); if (done) done(); }, 1200);
+  }
+
+  // called after a turn ends: announce the handover, then hand to the AI, the next human,
+  // or the pass-the-device screen
   function afterTurnChange() {
     if (LS.state.over) { LS.render.draw(); return; }
     const active = LS.state.activeTeam;
-    if (LS.game.isAI(active)) {            // computer's turn: no handoff, just play it
+    if (LS.game.isAI(active)) {            // computer's turn: announce it, then play it
       LS.state.handoff = false;
       LS.game.resumeTurn();
+      LS.state.busy = true;               // block input through the announcement and the AI's go
       LS.render.draw();
-      LS.ai.takeTurn(() => {              // end the turn — detonating any grenades it cooked first
-        const endAI = () => { LS.game.endTurn(); afterTurnChange(); };
-        if (LS.state.liveGrenades.length) detonateLive(endAI); else endAI();
+      showTurnIntro(active, "Computer's move", () => {
+        LS.ai.takeTurn(() => {            // end the turn — detonating any grenades it cooked first
+          const endAI = () => { LS.game.endTurn(); afterTurnChange(); };
+          if (LS.state.liveGrenades.length) detonateLive(endAI); else endAI();
+        });
       });
       return;
     }
-    if (LS.config.aiTeams && LS.config.aiTeams.length) { // vs-computer, human's turn: no device to pass
+    if (LS.config.aiTeams && LS.config.aiTeams.length) { // vs-computer, human's turn: announce, no device to pass
       LS.state.handoff = false;
       LS.game.resumeTurn();
       centerOnTeam(active);
+      LS.render.draw();
+      showTurnIntro(active, 'Your move', null);
+      return;
     }
-    // hot-seat: endTurn left handoff=true, so the pass-the-device screen shows
+    // hot-seat: endTurn left handoff=true, so the (restyled) pass-the-device screen shows
     LS.render.draw();
   }
 

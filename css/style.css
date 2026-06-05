@@ -81,11 +81,31 @@ body {
   flex-direction: column; align-items: center; justify-content: center;
   background: #0e1115; line-height: 1.4;
 }
+.handoff[style*="flex"] { animation: turnIn 0.45s ease both; }
 .handoff-pass { color: var(--muted); letter-spacing: 2px; font-size: 13px; text-transform: uppercase; margin-bottom: 8px; }
-.handoff-team { font-size: 34px; font-weight: 800; letter-spacing: 3px; margin-bottom: 22px; }
+.handoff-team { font-size: 40px; font-weight: 800; letter-spacing: 4px; margin-bottom: 22px; }
 .handoff-team.blue { color: var(--blue); }
 .handoff-team.red { color: var(--red); }
 .handoff .btn { background: var(--gold); color: #2a2410; }
+
+/* turn-change announcement (vs computer) — a translucent sweep that auto-dismisses */
+.turn-intro {
+  position: absolute; inset: 0; display: none; z-index: 4; pointer-events: none;
+  flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  background: rgba(10,12,16,0.5); backdrop-filter: blur(2px); line-height: 1.4;
+}
+.turn-intro.show { display: flex; animation: turnFade 1.2s ease forwards; }
+.turn-intro.show .ti-team { animation: turnIn 0.5s ease both; }
+.ti-team { font-size: 42px; font-weight: 800; letter-spacing: 4px; }
+.ti-team.blue { color: var(--blue); }
+.ti-team.red { color: var(--red); }
+.ti-sub { color: var(--muted); letter-spacing: 2px; font-size: 13px; text-transform: uppercase; }
+@keyframes turnFade { 0% { opacity: 0; } 14% { opacity: 1; } 82% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes turnIn { 0% { opacity: 0; transform: translateY(14px); } 100% { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .handoff[style*="flex"], .turn-intro.show, .turn-intro.show .ti-team { animation: none; }
+  .turn-intro.show { opacity: 1; }
+}
 
 /* start screen — pick the mode before the game begins */
 .startscreen {
