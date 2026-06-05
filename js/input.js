@@ -310,7 +310,10 @@ LS.input = (function () {
       LS.state.handoff = false;
       LS.game.resumeTurn();
       LS.render.draw();
-      LS.ai.takeTurn(() => { LS.game.endTurn(); afterTurnChange(); });
+      LS.ai.takeTurn(() => {              // end the turn — detonating any grenades it cooked first
+        const endAI = () => { LS.game.endTurn(); afterTurnChange(); };
+        if (LS.state.liveGrenades.length) detonateLive(endAI); else endAI();
+      });
       return;
     }
     if (LS.config.aiTeams && LS.config.aiTeams.length) { // vs-computer, human's turn: no device to pass

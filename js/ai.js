@@ -65,10 +65,66 @@ LS.ai = (function () {
     }
     return null;
   }
-  // one action for a unit: shoot > clear glass to open a shot > reposition > open a door to advance > hold
+  // best grenade throw: aim at a visible enemy or just off them; value = enemies caught in the blast.
+  // never throws if a friendly is in the blast (it detonates at end of turn, so check current spots).
+  function bestGrenade(u) {
+    if (u.grenades <= 0 || u.ap < cfg().grenade.throwCost) return null;
+    const enemies = enemiesSeen(u);
+    if (!enemies.length) return null;
+    // enemies already under a grenade cooked this turn — don't waste a second one stacking on them
+    const pending = new Set();
+    LS.state.liveGrenades.forEach(g => LS.game.blastTiles(g.x, g.y).forEach(t => pending.add(t.x + ',' + t.y)));
+    const cands = new Set();
+    enemies.forEach(e => {
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++)
+        if (LS.game.canThrowTo(u, e.x + dx, e.y + dy)) cands.add((e.x + dx) + ',' + (e.y + dy));
+    });
+    let best = null;
+    cands.forEach(s => {
+      const [x, y] = s.split(',').map(Number);
+      const tset = new Set(LS.game.blastTiles(x, y).map(t => t.x + ',' + t.y));
+      let blue = 0, friendly = 0;
+      LS.state.units.forEach(z => {
+        if (!z.alive || !tset.has(z.x + ',' + z.y)) return;
+        if (z.team === u.team) friendly++;
+        else if (!pending.has(z.x + ',' + z.y)) blue++; // only count enemies not already being grenaded
+      });
+      if (friendly > 0 || blue === 0) return; // never friendly-fire; must catch a fresh target
+      if (!best || blue > best.blue) best = { x, y, blue };
+    });
+    return best;
+  }
+  // could a known enemy land a shot on this tile (ignoring their facing — they can turn)?
+  function threatenedAt(u, x, y) { return enemiesSeen(u).some(e => LS.los.canTarget(e, x, y)); }
+  // a reachable tile that gets out of the line of fire, preferring distance from the enemies we can see
+  function retreatTile(u) {
+    const reach = LS.game.computeReachable(u), cols = cfg().cols, threats = enemiesSeen(u);
+    let best = null, score = -Infinity;
+    reach.cost.forEach((ap, k) => {
+      const x = k % cols, y = Math.floor(k / cols);
+      let s = threatenedAt(u, x, y) ? 0 : 50;                  // safety is the big prize
+      s += threats.length ? Math.min(...threats.map(e => LS.los.dist(x, y, e.x, e.y))) : 0; // and put ground between us
+      if (s > score) { score = s; best = { x, y }; }
+    });
+    return best;
+  }
+
+  // one action: big grenade > break contact when hurt > shoot > grenade a target we can't shoot >
+  // clear glass > reposition > open a door > hold
   function decide(u) {
     const t = bestTarget(u);
+    const nade = bestGrenade(u);
+    if (nade && nade.blue >= 2) return { type: 'throw', at: nade }; // a grenade that catches two+ is too good to skip
+    const hurt = u.hp <= Math.max(3, Math.ceil(u.maxHp * 0.3));
+    if (hurt && u.ap >= cfg().ap.moveOrtho && threatenedAt(u, u.x, u.y)) {
+      const killShot = t && LS.game.hitChance(u, t.x, t.y) >= 0.5 && t.hp <= W().dmgMax;
+      if (!killShot) {                                          // badly hurt and exposed: fall back, unless a kill is right there
+        const safe = retreatTile(u);
+        if (safe && (safe.x !== u.x || safe.y !== u.y)) return { type: 'move', dest: safe };
+      }
+    }
     if (t) return u.ap >= W().fireCost ? { type: 'fire', target: t } : { type: 'end' };
+    if (nade && nade.blue >= 1) return { type: 'throw', at: nade }; // can't shoot them — flush them out with a grenade
     const seen = enemiesSeen(u);
     if (!seen.length) return { type: 'end' };
     const goal = nearest(u, seen);
@@ -109,6 +165,20 @@ LS.ai = (function () {
         LS.render.unreveal(shooter.id);
         LS.render.draw();
         delay(160, done);
+      });
+    });
+  }
+
+  function aiThrow(unit, at, done) {
+    const res = LS.game.throwGrenade(unit, at.x, at.y);
+    if (!res.ok) return done();
+    LS.render.reveal(unit.id); // throwing gives your position away too
+    LS.render.focusTile(at.x, at.y, () => { // show where it lands (it is near your soldiers, so on screen)
+      LS.render.draw();
+      LS.render.throwArc(unit, { x: at.x, y: at.y }, () => {
+        LS.render.unreveal(unit.id);
+        LS.render.draw();
+        delay(180, done);
       });
     });
   }
@@ -187,6 +257,7 @@ LS.ai = (function () {
     };
     const action = decide(u);
     if (action.type === 'fire') return aiFire(u, action.target, cont);
+    if (action.type === 'throw') return aiThrow(u, action.at, cont);
     if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
     if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);
     if (action.type === 'move') {
