@@ -607,6 +607,7 @@ LS.render = (function () {
     const x1 = to.x * T + T / 2, y1 = to.y * T + T / 2;
     if (!g || !LS.config.anim.enabled) { if (g) g.setAttribute('transform', `translate(${x1},${y1})`); done(); return; }
     const x0 = from.x * T + T / 2, y0 = from.y * T + T / 2, dur = LS.config.anim.msPerTile;
+    LS.sound.play('step'); // one footfall per tile of the walk
     let start = null;
     function f(ts) {
       if (start === null) start = ts;

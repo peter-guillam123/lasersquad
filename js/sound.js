@@ -36,9 +36,15 @@ LS.sound = (function () {
     src.connect(g); g.connect(ctx.destination); src.start(t0);
   }
 
+  let stepFlip = false;
   function play(kind) {
     if (muted || !ctx) return;
-    if (kind === 'fire') tone({ freq: 720, freqEnd: 170, type: 'square', dur: 0.14, vol: 0.06 });
+    if (kind === 'step') { // soft footfall; alternates pitch so a walk reads as left-right
+      stepFlip = !stepFlip;
+      tone({ freq: stepFlip ? 98 : 80, freqEnd: 52, type: 'sine', dur: 0.07, vol: 0.05 });
+      noise({ dur: 0.025, vol: 0.018 });
+    }
+    else if (kind === 'fire') tone({ freq: 720, freqEnd: 170, type: 'square', dur: 0.14, vol: 0.06 });
     else if (kind === 'hit') { tone({ freq: 165, freqEnd: 60, type: 'sine', dur: 0.16, vol: 0.12 }); noise({ dur: 0.07, vol: 0.05 }); }
     else if (kind === 'miss') tone({ freq: 1150, freqEnd: 700, type: 'sine', dur: 0.07, vol: 0.04 });
     else if (kind === 'down') tone({ freq: 260, freqEnd: 70, type: 'sawtooth', dur: 0.42, vol: 0.1 });
