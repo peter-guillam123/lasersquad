@@ -73,7 +73,7 @@ LS.ui = (function () {
 
   function renderRoster(elId, team) {
     const box = document.getElementById(elId);
-    const known = team === LS.state.activeTeam;   // fog: you only know your own squad's state
+    const known = team === LS.game.viewTeam();   // fog: you only know your own squad's state
     const block = box.parentElement;              // .roster-block
     if (block) block.style.order = known ? '-1' : '0'; // your squad floats to the top
     const units = LS.state.units.filter(u => u.team === team);

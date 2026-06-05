@@ -97,8 +97,9 @@ LS.render = (function () {
 
   function draw() {
     const T = LS.config.tile, C = LS.config.colors;
-    vision = LS.game.teamVision(LS.state.activeTeam);
-    danger = LS.game.enemyDangerSet(LS.state.activeTeam, vision);
+    const vt = LS.game.viewTeam();
+    vision = LS.game.teamVision(vt);
+    danger = LS.game.enemyDangerSet(vt, vision);
     drawTerrain(T, C);
     drawFog(T, C);
     clear(layers.threat);
@@ -557,13 +558,13 @@ LS.render = (function () {
   function drawUnits(T, C) {
     clear(layers.units);
     for (const id in unitEls) delete unitEls[id];
-    const active = LS.state.activeTeam;
+    const viewer = LS.game.viewTeam();
     LS.state.units.filter(u => u.alive).forEach(u => {
-      if (u.team !== active && !vision.has(LS.game.key(u.x, u.y))) return; // hidden by fog
+      if (u.team !== viewer && !vision.has(LS.game.key(u.x, u.y))) return; // hidden by fog
       const g = el('g', { transform: `translate(${u.x * T + T / 2},${u.y * T + T / 2})` }, layers.units);
       unitEls[u.id] = { g, action: paintUnit(g, u, T, C) };
     });
-    drawGhosts(T, C, active);
+    drawGhosts(T, C, viewer);
   }
 
   // faded "?" markers where the active team last saw an enemy that's now out of sight
@@ -585,7 +586,7 @@ LS.render = (function () {
 
   // tint every tile the soldier can actually watch (real arc + walls) — the antidote to opaque reactions
   function drawThreat(u, T) {
-    const fill = u.team !== LS.state.activeTeam ? LS.config.colors.threatEnemy : LS.config.colors.threatAlly;
+    const fill = u.team !== LS.game.viewTeam() ? LS.config.colors.threatEnemy : LS.config.colors.threatAlly;
     for (let y = 0; y < LS.config.rows; y++)
       for (let x = 0; x < LS.config.cols; x++)
         if (!(x === u.x && y === u.y) && LS.los.canSee(u, x, y))
@@ -611,7 +612,7 @@ LS.render = (function () {
 
     const hov = LS.game.unitAt(tx, ty);
     // a fogged enemy must not leak through the hover readouts
-    const hovVisible = hov && (hov.team === LS.state.activeTeam || vision.has(LS.game.key(tx, ty)));
+    const hovVisible = hov && (hov.team === LS.game.viewTeam() || vision.has(LS.game.key(tx, ty)));
     if (hovVisible) drawThreat(hov, T);
 
     const sel = LS.game.selected();

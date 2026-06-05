@@ -224,7 +224,7 @@ LS.input = (function () {
     LS.state.busy = true;
     LS.ui.update();
     let i = 1;
-    let seen = LS.game.visibleEnemyIds(unit.team); // enemies already in view when the move began
+    let seen = LS.game.visibleEnemyIds(LS.game.viewTeam()); // enemies the watcher already sees when the move began
     function stepOne() {
       if (i >= path.length) return endMove();
       LS.render.followUnit(unit); // keep the mover on screen as it advances
@@ -232,7 +232,7 @@ LS.input = (function () {
       const dir = LS.util.dirIndex(to.x - from.x, to.y - from.y);
       const glide = () => LS.render.animateStep(unit, from, to, () => {
         LS.game.applyStep(unit, from, to);
-        const now = LS.game.visibleEnemyIds(unit.team);
+        const now = LS.game.visibleEnemyIds(LS.game.viewTeam());
         const contacts = [...now].filter(id => !seen.has(id)).map(id => LS.game.unitById(id));
         seen = now;
         const reactors = LS.game.findReactors(unit);

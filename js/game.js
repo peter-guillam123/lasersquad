@@ -119,9 +119,20 @@ LS.game = (function () {
     return vis;
   }
 
+  // who's a computer player, and whose eyes we render the board through.
+  // active team = whose turn it is (control/AP); view team = who's watching the screen.
+  // They match in hot-seat; during an AI turn the human keeps watching, so they differ.
+  function isAI(team) { return (LS.config.aiTeams || []).includes(team); }
+  function viewTeam() {
+    const at = LS.state.activeTeam;
+    if (!isAI(at)) return at;                       // a human is acting — they watch their own turn
+    return ['blue', 'red'].find(t => !isAI(t)) || at; // an AI is acting — the human watches
+  }
+
   function isVisible(u) {
-    if (u.team === LS.state.activeTeam) return true;
-    return teamVision(LS.state.activeTeam).has(key(u.x, u.y));
+    const vt = viewTeam();
+    if (u.team === vt) return true;
+    return teamVision(vt).has(key(u.x, u.y));
   }
 
   // ids of living enemies a team can currently see — used to spot fresh contacts mid-move
@@ -131,18 +142,21 @@ LS.game = (function () {
     return ids;
   }
 
-  // update the active team's last-seen memory of the enemy
+  // update both teams' last-seen memory of the enemy, each from its own vision.
+  // (Both, not just the active team, so the human's ghosts stay correct while the AI moves,
+  // and the AI keeps its own memory of where it last saw the player.)
   function observe() {
-    const team = LS.state.activeTeam;
-    const vis = teamVision(team);
-    const know = LS.state.knowledge[team];
-    LS.state.units.filter(u => u.team !== team).forEach(e => {
-      if (!e.alive) { delete know[e.id]; return; }
-      if (vis.has(key(e.x, e.y))) {
-        know[e.id] = { x: e.x, y: e.y, facing: e.facing, turn: LS.state.turnCount };
-      } else if (know[e.id] && vis.has(key(know[e.id].x, know[e.id].y))) {
-        delete know[e.id]; // we can see the spot we last saw them and they've gone
-      }
+    ['blue', 'red'].forEach(team => {
+      const vis = teamVision(team);
+      const know = LS.state.knowledge[team];
+      LS.state.units.filter(u => u.team !== team).forEach(e => {
+        if (!e.alive) { delete know[e.id]; return; }
+        if (vis.has(key(e.x, e.y))) {
+          know[e.id] = { x: e.x, y: e.y, facing: e.facing, turn: LS.state.turnCount };
+        } else if (know[e.id] && vis.has(key(know[e.id].x, know[e.id].y))) {
+          delete know[e.id]; // we can see the spot we last saw them and they've gone
+        }
+      });
     });
   }
 
@@ -390,7 +404,7 @@ LS.game = (function () {
     newGame, key, unitAt, unitById, selected, teamUnits, isPassable,
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
-    teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet,
+    teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet, isAI, viewTeam,
     toggleDoor, smashWindowMelee, shootWindow,
     canThrowTo, throwGrenade, blastTiles, detonateGrenade, breakWindow,
     endTurn, resumeTurn, checkWin, log,
