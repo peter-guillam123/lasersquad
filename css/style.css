@@ -121,11 +121,18 @@ body {
 }
 .squad-card.blue { border-left-color: rgba(74,163,255,0.55); }
 .squad-card.red  { border-left-color: rgba(255,93,93,0.55); }
-.squad-card.sel  { border-color: var(--gold); border-left-color: var(--gold); background: rgba(255,209,102,0.06); }
+/* turn state, shown on the left border (and an icon): fresh -> can still react -> low -> spent */
+.squad-card.st-fresh { border-left-color: rgba(74,163,255,0.7); }
+.squad-card.st-ready { border-left-color: #6bd86b; }
+.squad-card.st-low   { border-left-color: #e0b13a; }
+.squad-card.st-spent { border-left-color: #6b7480; opacity: 0.6; }
+.squad-card.sel  { border-color: var(--gold); border-left-color: var(--gold); background: rgba(255,209,102,0.06); opacity: 1; }
 .squad-card.dead { opacity: 0.4; cursor: default; }
 .squad-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 .sc-top { display: flex; justify-content: space-between; align-items: center; }
 .sc-name { font-weight: 700; font-size: 13px; }
+.sc-meta { display: flex; align-items: center; gap: 5px; }
+.sc-ic { display: block; }
 .sc-nades { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
 .sc-stat { display: flex; align-items: center; gap: 7px; }
 .sc-lbl { width: 18px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); }

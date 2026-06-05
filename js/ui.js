@@ -1,5 +1,8 @@
 // ui.js — the HTML panels around the board: turn banner, selected-unit card, log, victory.
 LS.ui = (function () {
+  // squad-card status icons: an eye = still able to opportunity-fire; a barred circle = out of AP
+  const ICON_EYE = '<svg class="sc-ic" viewBox="0 0 16 12" width="15" height="11" aria-hidden="true"><path d="M1 6 Q8 0.5 15 6 Q8 11.5 1 6Z" fill="none" stroke="#6bd86b" stroke-width="1.4"/><circle cx="8" cy="6" r="2.1" fill="#6bd86b"/></svg>';
+  const ICON_SPENT = '<svg class="sc-ic" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#8a93a0" stroke-width="1.4"/><line x1="2.6" y1="9.4" x2="9.4" y2="2.6" stroke="#8a93a0" stroke-width="1.4"/></svg>';
   function update() {
     const s = LS.state;
     // turn banner
@@ -87,16 +90,23 @@ LS.ui = (function () {
 
     // your squad: a card each with name, HP, AP and grenades, always on view
     box.className = 'roster squad';
-    const apMax = LS.config.ap.max;
+    const apMax = LS.config.ap.max, fireCost = LS.level.weapon.fireCost, moveMin = LS.config.ap.moveOrtho;
     box.innerHTML = units.map(u => {
       const sel = LS.state.selectedId === u.id, dead = !u.alive;
       const hpFrac = u.hp / u.maxHp;
       const hpCol = hpFrac > 0.5 ? '#6bd86b' : hpFrac > 0.25 ? '#e0b13a' : '#ff5d5d';
+      // state from AP: still able to react (>= fire cost), low (can move only), or spent.
+      // a soldier below full AP has acted this turn (shown by the border no longer being team-blue).
+      let stateCls = 'st-fresh', icon = '', word = '';
+      if (dead) { stateCls = ''; }
+      else if (u.ap < moveMin) { stateCls = 'st-spent'; icon = ICON_SPENT; word = ' — spent for the turn'; }
+      else if (u.ap < fireCost) { stateCls = 'st-low'; word = ' — moved, too low to return fire'; }
+      else if (u.ap < apMax) { stateCls = 'st-ready'; icon = ICON_EYE; word = ' — moved, still set for opportunity fire'; }
       const aria = dead ? `${u.name}: down`
-        : `${u.name}: ${u.hp} of ${u.maxHp} health, ${u.ap} of ${apMax} action points, ${u.grenades} grenade${u.grenades === 1 ? '' : 's'}`;
+        : `${u.name}: ${u.hp} of ${u.maxHp} health, ${u.ap} of ${apMax} action points, ${u.grenades} grenade${u.grenades === 1 ? '' : 's'}${word}`;
       const nades = u.grenades > 0 ? '◍'.repeat(u.grenades) : '·';
-      return `<button class="squad-card ${team} ${sel ? 'sel' : ''} ${dead ? 'dead' : ''}" data-id="${u.id}" ${dead ? 'disabled' : ''} aria-label="${aria}">
-        <span class="sc-top"><span class="sc-name">${u.name}${dead ? ' ✕' : ''}</span><span class="sc-nades" aria-hidden="true">${dead ? '' : nades}</span></span>
+      return `<button class="squad-card ${team} ${stateCls} ${sel ? 'sel' : ''} ${dead ? 'dead' : ''}" data-id="${u.id}" ${dead ? 'disabled' : ''} aria-label="${aria}">
+        <span class="sc-top"><span class="sc-name">${u.name}${dead ? ' ✕' : ''}</span><span class="sc-meta">${dead ? '' : icon}<span class="sc-nades" aria-hidden="true">${dead ? '' : nades}</span></span></span>
         <span class="sc-stat"><span class="sc-lbl">HP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(hpFrac * 100)}%;background:${hpCol}"></i></span><span class="sc-num">${dead ? '0' : u.hp}</span></span>
         <span class="sc-stat"><span class="sc-lbl">AP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(100 * u.ap / apMax)}%;background:#4aa3ff"></i></span><span class="sc-num">${dead ? '0' : u.ap}</span></span>
       </button>`;
