@@ -12,11 +12,10 @@ LS.ui = (function () {
     const u = LS.game.selected();
     if (u) {
       const w = LS.level.weapon;
+      // HP/AP now live in the squad strip above; the card carries the selected soldier's kit
       card.innerHTML = `
         <div class="unit-name ${u.team}">${u.name}</div>
-        <div class="stat"><span>Health</span><div class="bar"><i style="width:${100 * u.hp / u.maxHp}%;background:${u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a'}"></i></div><b>${u.hp}/${u.maxHp}</b></div>
-        <div class="stat"><span>Action</span><div class="bar"><i style="width:${100 * u.ap / LS.config.ap.max}%;background:#4aa3ff"></i></div><b>${u.ap}/${LS.config.ap.max}</b></div>
-        <div class="weapon">${w.name} · fire ${w.fireCost} AP · dmg ${w.dmgMin}–${w.dmgMax}<br>Grenades: ${u.grenades} · throw ${LS.config.grenade.throwCost} AP</div>`;
+        <div class="weapon bare">${w.name} · fire ${w.fireCost} AP · dmg ${w.dmgMin}–${w.dmgMax} · range ${w.range}<br>Grenades: ${u.grenades} · throw ${LS.config.grenade.throwCost} AP</div>`;
     } else {
       card.innerHTML = `<div class="hint">Select one of your soldiers.</div>`;
     }
@@ -75,11 +74,32 @@ LS.ui = (function () {
   function renderRoster(elId, team) {
     const box = document.getElementById(elId);
     const known = team === LS.state.activeTeam;   // fog: you only know your own squad's state
-    box.innerHTML = LS.state.units.filter(u => u.team === team).map(u => {
-      if (!known) return `<div class="pip ${team} unknown" title="enemy">?</div>`;
-      const cls = !u.alive ? 'dead' : (LS.state.selectedId === u.id ? 'sel' : '');
-      const hp = u.alive ? `${u.hp}` : '✕';
-      return `<div class="pip ${team} ${cls}" data-id="${u.id}" title="${u.name}">${hp}</div>`;
+    const block = box.parentElement;              // .roster-block
+    if (block) block.style.order = known ? '-1' : '0'; // your squad floats to the top
+    const units = LS.state.units.filter(u => u.team === team);
+
+    // enemy: fog — just a count of unknowns, never their HP/AP
+    if (!known) {
+      box.className = 'roster fog';
+      box.innerHTML = units.map(() => `<div class="pip ${team} unknown" title="enemy">?</div>`).join('');
+      return;
+    }
+
+    // your squad: a card each with name, HP, AP and grenades, always on view
+    box.className = 'roster squad';
+    const apMax = LS.config.ap.max;
+    box.innerHTML = units.map(u => {
+      const sel = LS.state.selectedId === u.id, dead = !u.alive;
+      const hpFrac = u.hp / u.maxHp;
+      const hpCol = hpFrac > 0.5 ? '#6bd86b' : hpFrac > 0.25 ? '#e0b13a' : '#ff5d5d';
+      const aria = dead ? `${u.name}: down`
+        : `${u.name}: ${u.hp} of ${u.maxHp} health, ${u.ap} of ${apMax} action points, ${u.grenades} grenade${u.grenades === 1 ? '' : 's'}`;
+      const nades = u.grenades > 0 ? '◍'.repeat(u.grenades) : '·';
+      return `<button class="squad-card ${team} ${sel ? 'sel' : ''} ${dead ? 'dead' : ''}" data-id="${u.id}" ${dead ? 'disabled' : ''} aria-label="${aria}">
+        <span class="sc-top"><span class="sc-name">${u.name}${dead ? ' ✕' : ''}</span><span class="sc-nades" aria-hidden="true">${dead ? '' : nades}</span></span>
+        <span class="sc-stat"><span class="sc-lbl">HP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(hpFrac * 100)}%;background:${hpCol}"></i></span><span class="sc-num">${dead ? '0' : u.hp}</span></span>
+        <span class="sc-stat"><span class="sc-lbl">AP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(100 * u.ap / apMax)}%;background:#4aa3ff"></i></span><span class="sc-num">${dead ? '0' : u.ap}</span></span>
+      </button>`;
     }).join('');
   }
 

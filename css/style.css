@@ -92,12 +92,13 @@ body {
   width: 280px; display: flex; flex-direction: column; gap: 16px;
 }
 
-.rosters { display: flex; gap: 14px; }
-.roster-block { flex: 1; }
+.rosters { display: flex; flex-direction: column; gap: 12px; }
+.roster-block { flex: 0 0 auto; }
 .roster-label { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; }
 .roster-label.blue { color: var(--blue); }
 .roster-label.red { color: var(--red); }
 .roster { display: flex; gap: 6px; margin-top: 6px; }
+.roster.squad { flex-direction: column; gap: 6px; }
 .pip {
   width: 30px; height: 30px; border-radius: 7px;
   display: flex; align-items: center; justify-content: center;
@@ -110,12 +111,35 @@ body {
 .pip.dead { opacity: 0.3; cursor: default; }
 .pip.unknown { opacity: 0.55; cursor: default; }
 
+/* your squad: a card each, HP/AP always on view */
+.squad-card {
+  display: flex; flex-direction: column; gap: 4px;
+  width: 100%; text-align: left; font: inherit; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line);
+  border-left: 3px solid transparent; border-radius: 8px;
+  padding: 7px 9px; cursor: pointer;
+}
+.squad-card.blue { border-left-color: rgba(74,163,255,0.55); }
+.squad-card.red  { border-left-color: rgba(255,93,93,0.55); }
+.squad-card.sel  { border-color: var(--gold); border-left-color: var(--gold); background: rgba(255,209,102,0.06); }
+.squad-card.dead { opacity: 0.4; cursor: default; }
+.squad-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+.sc-top { display: flex; justify-content: space-between; align-items: center; }
+.sc-name { font-weight: 700; font-size: 13px; }
+.sc-nades { font-size: 11px; color: var(--muted); letter-spacing: 1px; }
+.sc-stat { display: flex; align-items: center; gap: 7px; }
+.sc-lbl { width: 18px; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; color: var(--muted); }
+.sc-bar { flex: 1; height: 6px; background: #0e1115; border-radius: 4px; overflow: hidden; }
+.sc-bar i { display: block; height: 100%; }
+.sc-num { width: 22px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); }
+
 .unit-card {
   background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  padding: 14px; min-height: 96px;
+  padding: 14px; min-height: 64px;
 }
 .unit-card .hint { color: var(--muted); font-size: 13px; }
 .unit-name { font-weight: 800; font-size: 16px; letter-spacing: 0.5px; margin-bottom: 10px; }
+.weapon.bare { border-top: none; margin-top: 0; padding-top: 0; }
 .unit-name.blue { color: var(--blue); }
 .unit-name.red { color: var(--red); }
 .stat { display: flex; align-items: center; gap: 8px; margin: 7px 0; font-size: 12px; color: var(--muted); }

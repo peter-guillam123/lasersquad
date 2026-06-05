@@ -327,9 +327,9 @@ LS.input = (function () {
       const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
       if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); }
     });
-    // click a roster pip to select that soldier (if it's yours and your turn)
+    // click a roster card/pip to select that soldier (if it's yours and your turn)
     document.querySelector('.rosters').addEventListener('click', (e) => {
-      const pip = e.target.closest('.pip');
+      const pip = e.target.closest('[data-id]');
       if (!pip || LS.state.busy || LS.state.over) return;
       const u = LS.game.unitById(pip.dataset.id);
       if (u && u.alive && u.team === LS.state.activeTeam) {
