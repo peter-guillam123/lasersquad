@@ -3,12 +3,19 @@ LS.ui = (function () {
   // squad-card status icons: an eye = still able to opportunity-fire; a barred circle = out of AP
   const ICON_EYE = '<svg class="sc-ic" viewBox="0 0 16 12" width="15" height="11" aria-hidden="true"><path d="M1 6 Q8 0.5 15 6 Q8 11.5 1 6Z" fill="none" stroke="#6bd86b" stroke-width="1.4"/><circle cx="8" cy="6" r="2.1" fill="#6bd86b"/></svg>';
   const ICON_SPENT = '<svg class="sc-ic" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#8a93a0" stroke-width="1.4"/><line x1="2.6" y1="9.4" x2="9.4" y2="2.6" stroke="#8a93a0" stroke-width="1.4"/></svg>';
+  // team display names: the 'blue' team id now wears yellow marine armour, so it reads as "Yellow".
+  // the id stays 'blue' everywhere in the game logic — this only changes the on-screen text.
+  const TEAM_LABEL = { blue: 'Yellow', red: 'Red' };
+  const teamLabel = t => (TEAM_LABEL[t] || t).toUpperCase();
   function update() {
     const s = LS.state;
     // turn banner
     const banner = document.getElementById('turn-banner');
-    banner.textContent = s.over ? 'GAME OVER' : `${s.activeTeam.toUpperCase()} turn`;
+    banner.textContent = s.over ? 'GAME OVER' : `${teamLabel(s.activeTeam)} turn`;
     banner.className = 'turn-banner ' + (s.over ? 'over' : s.activeTeam);
+    // the per-team roster headers are static "BLUE"/"RED" placeholders in index.html — relabel them here
+    const rl = document.querySelector('.roster-label.blue'); if (rl) rl.textContent = teamLabel('blue');
+    const rr = document.querySelector('.roster-label.red'); if (rr) rr.textContent = teamLabel('red');
 
     // selected unit card
     const card = document.getElementById('unit-card');
@@ -52,7 +59,7 @@ LS.ui = (function () {
     if (s.handoff && !s.over) {
       ho.style.display = 'flex';
       const t = ho.querySelector('.handoff-team');
-      t.textContent = s.activeTeam.toUpperCase();
+      t.textContent = teamLabel(s.activeTeam);
       t.className = 'handoff-team ' + s.activeTeam;
     } else {
       ho.style.display = 'none';
@@ -62,7 +69,7 @@ LS.ui = (function () {
     const ov = document.getElementById('overlay');
     if (s.over) {
       ov.style.display = 'flex';
-      ov.querySelector('.win-text').textContent = `${s.winner.toUpperCase()} squad wins`;
+      ov.querySelector('.win-text').textContent = `${teamLabel(s.winner)} squad wins`;
       ov.querySelector('.win-text').className = 'win-text ' + s.winner;
     } else {
       ov.style.display = 'none';
