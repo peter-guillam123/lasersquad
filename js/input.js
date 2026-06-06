@@ -378,6 +378,7 @@ LS.input = (function () {
   }
   function doEndTurn() {
     resetEndConfirm();
+    LS.sound.play('endturn');
     if (LS.state.liveGrenades.length) detonateLive(() => { LS.game.endTurn(); afterTurnChange(); });
     else { LS.game.endTurn(); afterTurnChange(); }
   }

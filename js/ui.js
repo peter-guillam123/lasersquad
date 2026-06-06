@@ -33,6 +33,7 @@ LS.ui = (function () {
       feed.innerHTML = s.log.slice(-4).reverse()
         .map((m, i) => `<div class="feed-line ${classify(m)}" style="opacity:${[1, 0.72, 0.52, 0.4][i] || 0.4}">${m}</div>`).join('');
       if (s.log.length !== lastLogLen) {   // a new event arrived → flash it up, then fade after a beat
+        if (lastLogLen !== 0) LS.sound.play('type'); // typewriter clatter (skip the very first paint)
         lastLogLen = s.log.length;
         feed.classList.add('show');
         clearTimeout(feedTimer);

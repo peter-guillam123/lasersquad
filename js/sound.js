@@ -56,6 +56,13 @@ LS.sound = (function () {
       tone({ freq: 430, type: 'square', dur: 0.10, vol: 0.07 });
       tone({ freq: 700, type: 'square', dur: 0.13, vol: 0.07, delay: 0.11 });
     }
+    else if (kind === 'endturn') { // a soft confirm chord when you hand the turn over
+      tone({ freq: 300, freqEnd: 380, type: 'triangle', dur: 0.1, vol: 0.06 });
+      tone({ freq: 480, type: 'sine', dur: 0.13, vol: 0.045, delay: 0.09 });
+    }
+    else if (kind === 'type') { // a quick typewriter clatter for an incoming log line
+      for (let i = 0; i < 3; i++) tone({ freq: 1500 + (i % 2 ? 260 : 0), type: 'square', dur: 0.018, vol: 0.022, delay: i * 0.04 });
+    }
   }
 
   function toggle() { muted = !muted; if (!muted) ensure(); return muted; }
