@@ -41,6 +41,19 @@
 
     <h2>Development diary</h2>
 
+    <div class="entry">
+      <div class="date">6 JUNE 2026</div>
+      <h3>Tidying the terminal</h3>
+      <p>A few small things after the overhaul settled in. The squad renders yellow but the team's id is still
+        "blue" under the hood, and a handful of messages were leaking that — the turn banner sweep, the win line,
+        "move out" all still said BLUE. Fixed at the source: there's now one place that decides the display name,
+        so it can't drift again.</p>
+      <p>Two new sounds, both off until you turn audio on: a soft confirm chord when you hand the turn over, and
+        a little typewriter clatter each time a line lands in the on-screen feed — the log reads like it's being
+        typed at you. And I swept out the dead CSS left behind by the panels the overhaul removed: a tidy, no
+        visible change.</p>
+    </div>
+
     <div class="entry milestone">
       <div class="date">6 JUNE 2026</div>
       <h3>The command terminal</h3>
