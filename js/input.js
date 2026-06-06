@@ -399,6 +399,8 @@ LS.input = (function () {
       }
     });
     document.addEventListener('keydown', (e) => {
+      const hm = document.getElementById('howto');
+      if (e.key === 'Escape' && hm.style.display !== 'none') { hm.style.display = 'none'; return; }
       if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); return; }
       const T = LS.config.tile;
       const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
@@ -431,6 +433,10 @@ LS.input = (function () {
     document.getElementById('restart').addEventListener('click', showStartScreen); // back to the menu to re-pick a mode
     document.getElementById('start-hotseat').addEventListener('click', () => { LS.sound.ensure(); startGame([]); });
     document.getElementById('start-ai').addEventListener('click', () => { LS.sound.ensure(); startGame(['red']); });
+    const howto = document.getElementById('howto');
+    document.getElementById('howto-btn').addEventListener('click', () => { howto.style.display = 'flex'; });
+    document.getElementById('howto-close').addEventListener('click', () => { howto.style.display = 'none'; });
+    howto.addEventListener('click', (e) => { if (e.target === howto) howto.style.display = 'none'; }); // click the backdrop to close
     document.getElementById('handoff-btn').addEventListener('click', () => {
       LS.game.resumeTurn();
       centerOnTeam(LS.state.activeTeam); // frame the squad whose turn it now is

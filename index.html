@@ -9,7 +9,7 @@
 <body>
   <header class="topbar">
     <div class="brand">LASER&nbsp;SQUAD<span class="sub">turn-based tactics</span></div>
-    <nav><button id="mute" class="mutebtn">Sound: off</button><a href="about.html">About</a></nav>
+    <nav><button id="howto-btn" class="navlink">How to play</button><button id="mute" class="mutebtn">Sound: off</button><a href="about.html">About</a></nav>
   </header>
 
   <main class="game">
@@ -60,30 +60,37 @@
         <div class="log-title">Combat log</div>
         <div id="log" class="log"></div>
       </div>
-
-      <div class="legend">
-        <span><i class="sw mv-armed"></i> move here &amp; still cover</span>
-        <span><i class="sw mv-spent"></i> move here (no AP to react)</span>
-        <span><i class="sw th-enemy"></i> an enemy is watching</span>
-        <span><i class="sw th-ally"></i> your soldier's view</span>
-      </div>
-
-      <div class="help">
-        <b>How to play</b>
-        <ul>
-          <li>Click a soldier to select. Highlighted tiles are within reach.</li>
-          <li>Click a tile to move (costs action points), or an enemy in a red reticle to fire.</li>
-          <li>Click an arrow in the ring around a selected soldier to turn it on the spot.</li>
-          <li>Hover any soldier to see the tiles it can watch. Walls give cover — the hit % drops.</li>
-          <li>Blue tiles let you move and still keep enough AP to react next turn; grey tiles spend you out.</li>
-          <li>Leave a soldier facing the right way with spare AP and it fires on enemies who cross its view.</li>
-          <li>Doors start closed — click one next to your soldier to open it, then click it to step into the doorway, or click the ✕ badge to close it. Windows are see-through, but smash them (click up close, or shoot) before you can fire through.</li>
-          <li>Throw a grenade with its button, then click a tile in range. It cooks — it goes off at the end of your turn, so move clear of the orange blast zone before you end. A blast blows open breakable (lighter, cracked) walls and doors, and can leave an impassable crater where it lands.</li>
-          <li>End your turn to hand the screen to the other player.</li>
-        </ul>
-      </div>
     </aside>
   </main>
+
+  <div id="howto" class="modal" style="display:none">
+    <div class="modal-box">
+      <div class="modal-head"><span class="modal-title">How to play</span><button id="howto-close" class="modal-x" aria-label="Close">✕</button></div>
+      <div class="modal-body">
+        <h4>Controls</h4>
+        <ul>
+          <li>Click a soldier (on the board or its card) to select it. Reachable tiles light up.</li>
+          <li>Click a tile to move (costs action points), or an enemy in a red reticle to fire.</li>
+          <li>Click an arrow in the ring around a soldier to turn it on the spot.</li>
+          <li>Click a soldier's grenade button, then a tile in range, to lob a grenade — click it again or press <b>Esc</b> to cancel.</li>
+          <li>Hover any soldier to see the tiles it can watch. Walls give cover — the hit % drops.</li>
+          <li>Leave a soldier facing the right way with spare action points and it fires on enemies who cross its view next turn.</li>
+          <li>Doors start closed — open one next to a soldier, then step through. Windows are see-through, but smash them (up close, or by shooting) before you can fire through.</li>
+          <li>A grenade cooks — it goes off at the <b>end of the turn</b>, so clear the orange blast zone. A blast blows open breakable (cracked) walls and can leave an impassable crater.</li>
+          <li>Drag the battlefield to scroll; arrow keys or WASD also pan.</li>
+        </ul>
+        <h4>On-screen colours</h4>
+        <div class="legend">
+          <span><i class="sw mv-armed"></i> move here &amp; still react next turn</span>
+          <span><i class="sw mv-spent"></i> move here (spends your action points)</span>
+          <span><i class="sw th-enemy"></i> an enemy can watch this tile</span>
+          <span><i class="sw th-ally"></i> your soldier's field of view</span>
+        </div>
+        <h4>Your kit</h4>
+        <p class="kit">Laser Rifle · fire 8 AP · damage 3–6 · range 12.<br>Grenades: 2 each · throw 6 AP · blast radius 2.</p>
+      </div>
+    </div>
+  </div>
 
   <script src="js/config.js?v=dev"></script>
   <script src="js/level.js?v=dev"></script>
