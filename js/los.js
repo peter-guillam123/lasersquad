@@ -22,8 +22,9 @@ LS.los = (function () {
   // (locker, console) block sight & fire — crates and desks you can see and shoot over.
   const DECOR = {
     c: { sight: false, shot: false }, // crate  — low cover
-    t: { sight: false, shot: false }, // desk/table — low cover
+    t: { sight: false, shot: false }, // table  — low cover
     b: { sight: false, shot: false }, // bed    — low cover
+    p: { sight: false, shot: false }, // potted plant — low cover
     L: { sight: true,  shot: true  }, // locker — tall cover
     M: { sight: true,  shot: true  }, // console/machinery — tall cover
     T: { sight: true,  shot: true  }, // tree   — tall cover (outdoors)

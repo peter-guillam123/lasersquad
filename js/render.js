@@ -15,10 +15,27 @@ LS.render = (function () {
     svg = document.getElementById('board');
     // 'threat' sits above 'overlay' so enemy danger reads red over the blue move-field, not muddy purple.
     // 'fx' is topmost and is NOT cleared by draw(), so floating damage numbers survive a redraw.
+    buildPatterns();   // reusable grass/floor fills (defined once, keeps a big board cheap)
     ['terrain', 'fog', 'overlay', 'threat', 'units', 'facing', 'hover', 'fx'].forEach(name => {
       layers[name] = el('g', { id: 'layer-' + name }, svg);
     });
     setCamera(LS.state.cam.x, LS.state.cam.y); // the viewBox is a window onto the (possibly larger) map
+  }
+
+  // grass = dark soil + scattered green flecks (over a 4-tile span so it doesn't visibly repeat per cell);
+  // floor = dark tile + a blue grout grid. Patterns tile in world space, so they hold still as the camera pans.
+  function buildPatterns() {
+    const T = LS.config.tile, C = LS.config.colors;
+    const defs = el('defs', {}, svg);
+    const grass = el('pattern', { id: 'grass', patternUnits: 'userSpaceOnUse', width: T * 4, height: T * 4 }, defs);
+    el('rect', { x: 0, y: 0, width: T * 4, height: T * 4, fill: C.grassBase }, grass);
+    for (let i = 0; i < 150; i++) {
+      const fx = Math.random() * T * 4, fy = Math.random() * T * 4;
+      el('circle', { cx: fx, cy: fy, r: 0.5 + Math.random() * 1.3, fill: Math.random() < 0.5 ? C.grassFleckA : C.grassFleckB, opacity: 0.45 + Math.random() * 0.5 }, grass);
+    }
+    const floor = el('pattern', { id: 'floor', patternUnits: 'userSpaceOnUse', width: T, height: T }, defs);
+    el('rect', { x: 0, y: 0, width: T, height: T, fill: C.floorBase }, floor);
+    el('path', { d: `M0 ${T} H${T} V0`, fill: 'none', stroke: C.floorGrid, 'stroke-width': 1, 'stroke-dasharray': '3 4' }, floor);
   }
 
   // --- camera: the SVG viewBox is a window onto the world; panning just moves it (no re-render) ---
@@ -168,16 +185,13 @@ LS.render = (function () {
         const decor = !rubbled && !cratered && LS.los.isDecor(x, y); // crate/desk/locker/console/bed/tree/shrub
         const outdoorDecor = decor && LS.los.isOutdoorDecor(x, y);    // trees/shrubs sit on grass
         const floorLike = ch === '_' || ch === 'D' || ch === 'R' || (decor && !outdoorDecor); // indoor decor sits on a floor
-        let fill;
-        if (rubbled) fill = (x + y) % 2 ? C.floorB : C.floorA;     // blown open -> floor
-        else if (ch === '#') fill = C.wall;
-        else if (ch === 'x') fill = C.wallWeak;
-        else if (ch === 'W') fill = C.wall;                        // a window sits in a wall
-        else if (floorLike) fill = (x + y) % 2 ? C.floorB : C.floorA;
-        else fill = (x + y) % 2 ? C.groundB : C.groundA;           // '.' ground
-        el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
-        if ((ch === '_' || (decor && !outdoorDecor)) && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
-          el('rect', { x: x * T + 3, y: y * T + 3, width: T - 6, height: T - 6, rx: 3, fill: 'none', stroke: 'rgba(0,0,0,0.16)', 'stroke-width': 1 }, layers.terrain);
+        const isWallTile = (ch === '#' || ch === 'x' || ch === 'W') && !rubbled;
+        let base;
+        if (rubbled) base = 'url(#floor)';                       // blown open -> floor
+        else if (isWallTile) base = borderingInterior(x, y) ? 'url(#floor)' : 'url(#grass)'; // shows beside thin N-S walls
+        else if (floorLike) base = 'url(#floor)';
+        else base = 'url(#grass)';                               // '.' ground (grass)
+        el('rect', { x: x * T, y: y * T, width: T, height: T, fill: base }, layers.terrain);
 
         if (rubbled) drawRubble(x, y, T, C);
         else if (cratered) drawCrater(x, y, T, C);
@@ -186,35 +200,65 @@ LS.render = (function () {
         else if (ch === 'D' || ch === 'R') drawDoor(x, y, T, C, ch === 'R');
         else if (ch === 'W') drawWindow(x, y, T, C);
         else if (decor) drawDecor(x, y, T, C, ch);
-
-        el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'none', stroke: C.grid, 'stroke-width': 1 }, layers.terrain);
+        else if (ch === 'f') drawFlowerbed(x, y, T, C); // passable field flora
+        else if (ch === 'r') drawReed(x, y, T, C);
       }
     }
   }
 
-  // reinforced wall: top light bevel, bottom shade, panel seams + rivets (depth, but muted)
-  function drawWall(x, y, T, C) {
-    const cx = x * T, cy = y * T;
-    el('rect', { x: cx, y: cy, width: T, height: T * 0.24, fill: C.wallTop }, layers.terrain);
-    el('rect', { x: cx, y: cy + T * 0.82, width: T, height: T * 0.18, fill: 'rgba(0,0,0,0.22)' }, layers.terrain);
-    el('line', { x1: cx + T * 0.5, y1: cy + T * 0.24, x2: cx + T * 0.5, y2: cy + T, stroke: 'rgba(0,0,0,0.28)', 'stroke-width': 1 }, layers.terrain);
-    el('line', { x1: cx, y1: cy + T * 0.6, x2: cx + T, y2: cy + T * 0.6, stroke: 'rgba(255,255,255,0.045)', 'stroke-width': 1 }, layers.terrain);
-    el('circle', { cx: cx + T * 0.17, cy: cy + T * 0.42, r: T * 0.03, fill: C.wallTop }, layers.terrain);
-    el('circle', { cx: cx + T * 0.83, cy: cy + T * 0.42, r: T * 0.03, fill: C.wallTop }, layers.terrain);
+  // does this tile border the building interior? (decides the base shown beside a thin wall)
+  function borderingInterior(x, y) {
+    return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => {
+      const c = LS.los.tileChar(x + dx, y + dy);
+      return c === '_' || c === 'D' || c === 'R' || LS.los.rubbled(x + dx, y + dy);
+    });
+  }
+  // which sides this wall/door/window joins onto (so walls connect into corners and doorways)
+  function wallLink(x, y) {
+    const S = (xx, yy) => { const c = LS.los.tileChar(xx, yy); return c === '#' || c === 'x' || c === 'W' || c === 'D' || c === 'R'; };
+    return { n: S(x, y - 1), s: S(x, y + 1), w: S(x - 1, y), e: S(x + 1, y) };
+  }
+  // shared geometry so walls, doors and windows all sit on the same line
+  const WALL = { vw: 0.42, hh: 0.60 }; // thin N-S strip width; thick E-W band height (fractions of a tile)
+
+  // connection-aware stone wall: arms reach toward each wall neighbour — horizontal arms draw THICK
+  // and faced (you see the wall's lit top + front), vertical arms draw THIN (seen edge-on). Corners,
+  // T-junctions and crossings all join cleanly, no separate corner art needed.
+  function stoneWall(x, y, T, cracked) {
+    const C = LS.config.colors, cx = x * T, cy = y * T, L = wallLink(x, y);
+    const vw = WALL.vw * T, vx = cx + (T - vw) / 2;            // vertical strip
+    const hh = WALL.hh * T, hy = cy + (T - hh) / 2;            // horizontal band
+    const coreT = hy, coreB = hy + hh, coreL = vx, coreR = vx + vw;
+    if (L.n || L.s) {                                          // N-S strip (thin, edge-on)
+      const y0 = L.n ? cy : coreT, y1 = L.s ? cy + T : coreB;
+      el('rect', { x: vx, y: y0, width: vw, height: y1 - y0, fill: C.wallFace }, layers.terrain);
+      el('rect', { x: vx, y: y0, width: vw * 0.3, height: y1 - y0, fill: C.wallTopLt, opacity: 0.5 }, layers.terrain);
+      el('rect', { x: vx + vw * 0.72, y: y0, width: vw * 0.28, height: y1 - y0, fill: 'rgba(0,0,0,0.3)' }, layers.terrain);
+      el('rect', { x: vx, y: y0, width: vw, height: y1 - y0, fill: 'none', stroke: C.wallEdge, 'stroke-width': 1 }, layers.terrain);
+    }
+    if (L.e || L.w) {                                          // E-W band (thick, faced)
+      const x0 = L.w ? cx : coreL, x1 = L.e ? cx + T : coreR, bw = x1 - x0;
+      el('rect', { x: x0, y: hy, width: bw, height: hh, fill: C.wallFace }, layers.terrain);
+      el('rect', { x: x0, y: hy, width: bw, height: hh * 0.26, fill: C.wallTopLt }, layers.terrain);                // lit top
+      el('rect', { x: x0, y: hy + hh * 0.84, width: bw, height: hh * 0.16, fill: 'rgba(0,0,0,0.28)' }, layers.terrain); // base shade
+      el('line', { x1: x0, y1: hy + hh * 0.55, x2: x1, y2: hy + hh * 0.55, stroke: C.wallMortar, 'stroke-width': 1 }, layers.terrain);
+      for (let mx = Math.ceil(x0 / (T * 0.5)) * (T * 0.5); mx < x1 - 2; mx += T * 0.5)
+        el('line', { x1: mx, y1: hy + hh * 0.26, x2: mx, y2: hy + hh * 0.84, stroke: C.wallMortar, 'stroke-width': 1 }, layers.terrain);
+      el('rect', { x: x0, y: hy, width: bw, height: hh, fill: 'none', stroke: C.wallEdge, 'stroke-width': 1 }, layers.terrain);
+    }
+    if (!L.n && !L.s && !L.e && !L.w) {                        // lone wall: a post
+      el('rect', { x: coreL, y: coreT, width: vw, height: hh, fill: C.wallFace, stroke: C.wallEdge, 'stroke-width': 1 }, layers.terrain);
+      el('rect', { x: coreL, y: coreT, width: vw, height: hh * 0.26, fill: C.wallTopLt }, layers.terrain);
+    }
+    if (cracked) el('polyline', { points: `${cx + T * 0.41},${coreT + 2} ${cx + T * 0.52},${cy + T * 0.5} ${cx + T * 0.43},${coreB - 2}`, fill: 'none', stroke: 'rgba(18,14,10,0.55)', 'stroke-width': 1.4 }, layers.terrain);
   }
 
+  function drawWall(x, y, T, C) { stoneWall(x, y, T, false); }
+
   function drawBreakableWall(x, y, T, C) {
-    const cx = x * T, cy = y * T;
-    el('rect', { x: cx, y: cy, width: T, height: T * 0.22, fill: C.wallTop }, layers.terrain);
-    el('rect', { x: cx, y: cy + T * 0.84, width: T, height: T * 0.16, fill: 'rgba(0,0,0,0.18)' }, layers.terrain);
-    el('polyline', { points: `${cx + T * 0.3},${cy} ${cx + T * 0.44},${cy + T * 0.4} ${cx + T * 0.34},${cy + T * 0.72} ${cx + T * 0.46},${cy + T}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.5 }, layers.terrain);
-    el('polyline', { points: `${cx + T * 0.72},${cy + T * 0.12} ${cx + T * 0.6},${cy + T * 0.5} ${cx + T * 0.74},${cy + T * 0.85}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.2 }, layers.terrain);
-    // a wall that's taken a blast but held looks scorched and more cracked (HP itself stays hidden)
+    stoneWall(x, y, T, true); // same grey as a solid wall; the crack marks it breakable
     const w = LS.state.wallHp && LS.state.wallHp.get(LS.game.key(x, y));
-    if (w && w.hp < w.max) {
-      el('rect', { x: cx, y: cy, width: T, height: T, fill: 'rgba(0,0,0,0.22)' }, layers.terrain);
-      el('polyline', { points: `${cx + T * 0.15},${cy + T * 0.3} ${cx + T * 0.5},${cy + T * 0.55} ${cx + T * 0.85},${cy + T * 0.4}`, fill: 'none', stroke: C.crack, 'stroke-width': 1.6 }, layers.terrain);
-    }
+    if (w && w.hp < w.max) el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'rgba(0,0,0,0.24)' }, layers.terrain); // scorched but holding
   }
 
   function drawRubble(x, y, T, C) {
@@ -233,67 +277,73 @@ LS.render = (function () {
   }
 
   // doors/windows orient along the wall they sit in (barriers above & below => vertical wall run)
+  // a wall stub (the wall running up to a door/window frame) in the chosen orientation
+  function wallStub(x0, y0, w, h, faced, C) {
+    el('rect', { x: x0, y: y0, width: w, height: h, fill: C.wallFace }, layers.terrain);
+    if (faced) el('rect', { x: x0, y: y0, width: w, height: h * 0.26, fill: C.wallTopLt }, layers.terrain); // lit top for E-W
+    el('rect', { x: x0, y: y0, width: w, height: h, fill: 'none', stroke: C.wallEdge, 'stroke-width': 1 }, layers.terrain);
+  }
+
+  // doors take the wall's orientation: thin in a N-S run, thick/faced in an E-W run. Gold (steel when reinforced).
   function drawDoor(x, y, T, C, reinforced) {
-    const open = LS.los.doorOpen(x, y);
-    const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1);
-    const leaf = reinforced ? C.doorSteel : C.doorLeaf;
-    const frame = reinforced ? C.doorSteelFrame : C.doorFrame;
-    const cx = x * T, cy = y * T;
-    if (open) {
-      if (vertical) {
-        el('rect', { x: cx + T * 0.40, y: cy, width: T * 0.20, height: T * 0.12, fill: frame }, layers.terrain);
-        el('rect', { x: cx + T * 0.40, y: cy + T * 0.88, width: T * 0.20, height: T * 0.12, fill: frame }, layers.terrain);
-        el('rect', { x: cx + T * 0.52, y: cy + T * 0.07, width: T * 0.40, height: T * 0.12, rx: 2, fill: leaf, stroke: frame, 'stroke-width': 1 }, layers.terrain);
+    const open = LS.los.doorOpen(x, y), cx = x * T, cy = y * T;
+    const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1); // in a N-S wall
+    const leaf = reinforced ? C.doorSteel : C.doorGold, frame = reinforced ? C.doorSteelFrame : C.doorGoldDk;
+    if (vertical) {
+      const vw = WALL.vw * T, vx = cx + (T - vw) / 2;
+      wallStub(vx, cy, vw, T * 0.20, false, C); wallStub(vx, cy + T * 0.80, vw, T * 0.20, false, C);
+      if (open) {
+        el('rect', { x: vx, y: cy + T * 0.20, width: vw, height: T * 0.05, fill: frame }, layers.terrain);
+        el('rect', { x: vx, y: cy + T * 0.75, width: vw, height: T * 0.05, fill: frame }, layers.terrain);
       } else {
-        el('rect', { x: cx, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: frame }, layers.terrain);
-        el('rect', { x: cx + T * 0.88, y: cy + T * 0.40, width: T * 0.12, height: T * 0.20, fill: frame }, layers.terrain);
-        el('rect', { x: cx + T * 0.07, y: cy + T * 0.52, width: T * 0.12, height: T * 0.40, rx: 2, fill: leaf, stroke: frame, 'stroke-width': 1 }, layers.terrain);
+        el('rect', { x: vx, y: cy + T * 0.22, width: vw, height: T * 0.56, fill: leaf, stroke: frame, 'stroke-width': 1.5 }, layers.terrain);
+        el('line', { x1: vx, y1: cy + T * 0.5, x2: vx + vw, y2: cy + T * 0.5, stroke: frame, 'stroke-width': 1 }, layers.terrain);
+        if (reinforced) [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]].forEach(([fx, fy]) => el('circle', { cx: vx + vw * fx, cy: cy + T * fy, r: T * 0.03, fill: frame }, layers.terrain));
       }
     } else {
-      const lx = vertical ? cx + T * 0.32 : cx + T * 0.05;
-      const ly = vertical ? cy + T * 0.05 : cy + T * 0.32;
-      const lw = vertical ? T * 0.36 : T * 0.90;
-      const lh = vertical ? T * 0.90 : T * 0.36;
-      el('rect', { x: lx, y: ly, width: lw, height: lh, rx: 3, fill: leaf, stroke: frame, 'stroke-width': 2 }, layers.terrain);
-      if (reinforced) {
-        // rivets to read as a blast-proof bulkhead
-        [[0.2, 0.2], [0.8, 0.2], [0.2, 0.8], [0.8, 0.8]].forEach(([fx, fy]) =>
-          el('circle', { cx: lx + lw * fx, cy: ly + lh * fy, r: T * 0.035, fill: frame }, layers.terrain));
+      const hh = WALL.hh * T, hy = cy + (T - hh) / 2;
+      wallStub(cx, hy, T * 0.20, hh, true, C); wallStub(cx + T * 0.80, hy, T * 0.20, hh, true, C);
+      if (open) {
+        el('rect', { x: cx + T * 0.20, y: hy, width: T * 0.05, height: hh, fill: frame }, layers.terrain);
+        el('rect', { x: cx + T * 0.75, y: hy, width: T * 0.05, height: hh, fill: frame }, layers.terrain);
       } else {
-        el('circle', { cx: cx + (vertical ? T * 0.40 : T * 0.5), cy: cy + (vertical ? T * 0.5 : T * 0.40), r: T * 0.05, fill: frame }, layers.terrain);
-        [0.34, 0.66].forEach(f => vertical    // wooden planks
-          ? el('line', { x1: lx, y1: ly + lh * f, x2: lx + lw, y2: ly + lh * f, stroke: frame, 'stroke-width': 1 }, layers.terrain)
-          : el('line', { x1: lx + lw * f, y1: ly, x2: lx + lw * f, y2: ly + lh, stroke: frame, 'stroke-width': 1 }, layers.terrain));
+        el('rect', { x: cx + T * 0.22, y: hy + hh * 0.1, width: T * 0.56, height: hh * 0.8, fill: leaf, stroke: frame, 'stroke-width': 1.5 }, layers.terrain);
+        el('line', { x1: cx + T * 0.5, y1: hy + hh * 0.1, x2: cx + T * 0.5, y2: hy + hh * 0.9, stroke: frame, 'stroke-width': 1 }, layers.terrain);
+        if (reinforced) [[0.3, 0.3], [0.7, 0.3], [0.3, 0.7], [0.7, 0.7]].forEach(([fx, fy]) => el('circle', { cx: cx + T * fx, cy: hy + hh * fy, r: T * 0.03, fill: frame }, layers.terrain));
       }
     }
   }
 
+  // windows take the wall orientation too; glass between two wall stubs, oriented thin or faced
   function drawWindow(x, y, T, C) {
-    const smashed = LS.los.windowSmashed(x, y);
+    const smashed = LS.los.windowSmashed(x, y), cx = x * T, cy = y * T;
     const vertical = LS.los.isBarrier(x, y - 1) && LS.los.isBarrier(x, y + 1);
-    const cx = x * T, cy = y * T;
-    const px = vertical ? cx + T * 0.30 : cx + T * 0.08;
-    const py = vertical ? cy + T * 0.08 : cy + T * 0.30;
-    const pw = vertical ? T * 0.40 : T * 0.84;
-    const ph = vertical ? T * 0.84 : T * 0.40;
-    if (!smashed) {
-      el('rect', { x: px, y: py, width: pw, height: ph, fill: C.glass, stroke: C.glassEdge, 'stroke-width': 2 }, layers.terrain);
-      el('line', { x1: px + pw / 2, y1: py, x2: px + pw / 2, y2: py + ph, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
-      el('line', { x1: px, y1: py + ph / 2, x2: px + pw, y2: py + ph / 2, stroke: C.glassEdge, 'stroke-width': 1 }, layers.terrain);
-      el('line', { x1: px + pw * 0.22, y1: py + ph * 0.12, x2: px + pw * 0.5, y2: py + ph * 0.46, stroke: 'rgba(255,255,255,0.4)', 'stroke-width': 2, 'stroke-linecap': 'round' }, layers.terrain); // glint
+    const pane = smashed ? '#10131a' : C.glass, edge = C.glassEdge;
+    const sw = smashed ? { 'stroke-dasharray': '2 3', 'stroke-width': 1.2 } : { 'stroke-width': 1.5 };
+    if (vertical) {
+      const vw = WALL.vw * T, vx = cx + (T - vw) / 2;
+      wallStub(vx, cy, vw, T * 0.18, false, C); wallStub(vx, cy + T * 0.82, vw, T * 0.18, false, C);
+      el('rect', Object.assign({ x: vx, y: cy + T * 0.18, width: vw, height: T * 0.64, fill: pane, stroke: edge }, sw), layers.terrain);
+      if (!smashed) {
+        el('line', { x1: vx, y1: cy + T * 0.5, x2: vx + vw, y2: cy + T * 0.5, stroke: edge, 'stroke-width': 1 }, layers.terrain);
+        el('line', { x1: vx + vw * 0.25, y1: cy + T * 0.25, x2: vx + vw * 0.55, y2: cy + T * 0.42, stroke: 'rgba(255,255,255,0.4)', 'stroke-width': 1.5, 'stroke-linecap': 'round' }, layers.terrain);
+      }
     } else {
-      el('rect', { x: px, y: py, width: pw, height: ph, fill: '#10131a', stroke: C.glassEdge, 'stroke-width': 1.5, 'stroke-dasharray': '2 3' }, layers.terrain);
-      el('polygon', { points: `${px},${py} ${px + pw * 0.32},${py} ${px},${py + ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
-      el('polygon', { points: `${px + pw},${py + ph} ${px + pw - pw * 0.32},${py + ph} ${px + pw},${py + ph - ph * 0.38}`, fill: C.glassEdge, opacity: 0.5 }, layers.terrain);
+      const hh = WALL.hh * T, hy = cy + (T - hh) / 2;
+      wallStub(cx, hy, T * 0.18, hh, true, C); wallStub(cx + T * 0.82, hy, T * 0.18, hh, true, C);
+      el('rect', Object.assign({ x: cx + T * 0.18, y: hy + hh * 0.12, width: T * 0.64, height: hh * 0.76, fill: pane, stroke: edge }, sw), layers.terrain);
+      if (!smashed) {
+        el('line', { x1: cx + T * 0.5, y1: hy + hh * 0.12, x2: cx + T * 0.5, y2: hy + hh * 0.88, stroke: edge, 'stroke-width': 1 }, layers.terrain);
+        el('line', { x1: cx + T * 0.26, y1: hy + hh * 0.28, x2: cx + T * 0.44, y2: hy + hh * 0.5, stroke: 'rgba(255,255,255,0.4)', 'stroke-width': 1.5, 'stroke-linecap': 'round' }, layers.terrain);
+      }
     }
   }
 
-  // decor objects: low cover (crate, desk) reads short and open-topped; tall cover (locker,
-  // console) fills the tile and reads solid, since it blocks sight.
   function drawDecor(x, y, T, C, ch) {
     if (ch === 'c') drawCrate(x, y, T, C);
-    else if (ch === 't') drawDesk(x, y, T, C);
+    else if (ch === 't') drawTable(x, y, T, C);
     else if (ch === 'b') drawBed(x, y, T, C);
+    else if (ch === 'p') drawPlant(x, y, T, C);
     else if (ch === 'L') drawLocker(x, y, T, C);
     else if (ch === 'M') drawConsole(x, y, T, C);
     else if (ch === 'T') drawTree(x, y, T, C);
@@ -301,63 +351,94 @@ LS.render = (function () {
   }
 
   function drawCrate(x, y, T, C) {
-    const cx = x * T, cy = y * T, p = T * 0.17;
-    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
-    el('rect', { x: x0, y: y0 + h * 0.08, width: w, height: h * 0.92, rx: 2, fill: C.crateBody, stroke: C.crateEdge, 'stroke-width': 1.5 }, layers.terrain);
-    el('rect', { x: x0, y: y0, width: w, height: h * 0.26, rx: 2, fill: C.crateTop }, layers.terrain); // lid (lighter top face)
-    el('line', { x1: x0, y1: y0 + h * 0.3, x2: x0 + w, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain); // X brace
-    el('line', { x1: x0 + w, y1: y0 + h * 0.3, x2: x0, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain);
+    const cx = x * T, cy = y * T, p = T * 0.16, x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    el('rect', { x: x0 + 1, y: y0 + 2, width: w, height: h, rx: 2, fill: 'rgba(0,0,0,0.35)' }, layers.terrain); // AO
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.crateBody, stroke: C.crateEdge, 'stroke-width': 1.5 }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.24, rx: 2, fill: C.crateTop }, layers.terrain); // lit lid
+    el('line', { x1: x0, y1: y0 + h * 0.28, x2: x0 + w, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain); // X brace
+    el('line', { x1: x0 + w, y1: y0 + h * 0.28, x2: x0, y2: y0 + h, stroke: C.crateBrace, 'stroke-width': 2 }, layers.terrain);
   }
 
-  function drawDesk(x, y, T, C) {
+  function drawTable(x, y, T, C) { // cyan dining table with grey chairs, like the original
     const cx = x * T, cy = y * T;
-    const x0 = cx + T * 0.12, w = T * 0.76, y0 = cy + T * 0.30, h = T * 0.34;
-    [0.18, 0.74].forEach(fx => el('rect', { x: cx + T * fx, y: y0 + h * 0.6, width: T * 0.08, height: T * 0.26, fill: C.deskLeg }, layers.terrain)); // legs
-    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.deskTop, stroke: 'rgba(0,0,0,0.32)', 'stroke-width': 1 }, layers.terrain); // surface
-    el('line', { x1: x0, y1: y0 + h * 0.55, x2: x0 + w, y2: y0 + h * 0.55, stroke: 'rgba(0,0,0,0.18)', 'stroke-width': 1 }, layers.terrain);
+    [[0.30, 0.09], [0.57, 0.09], [0.30, 0.78], [0.57, 0.78]].forEach(([fx, fy]) =>
+      el('rect', { x: cx + T * fx, y: cy + T * fy, width: T * 0.13, height: T * 0.13, rx: 2, fill: C.chair }, layers.terrain));
+    const x0 = cx + T * 0.17, y0 = cy + T * 0.30, w = T * 0.66, h = T * 0.40;
+    el('rect', { x: x0, y: y0 + 2, width: w, height: h, rx: 3, fill: 'rgba(0,0,0,0.3)' }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 3, fill: C.tableTop, stroke: C.tableLeg, 'stroke-width': 1.5 }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.32, rx: 3, fill: C.tableTopHi, opacity: 0.6 }, layers.terrain); // sheen
+  }
+
+  function drawBed(x, y, T, C) { // yellow bed
+    const cx = x * T, cy = y * T, x0 = cx + T * 0.18, y0 = cy + T * 0.12, w = T * 0.64, h = T * 0.76;
+    el('rect', { x: x0 + 1, y: y0 + 2, width: w, height: h, rx: 3, fill: 'rgba(0,0,0,0.3)' }, layers.terrain);
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 3, fill: C.bedFrame }, layers.terrain);
+    el('rect', { x: x0 + T * 0.04, y: y0 + T * 0.2, width: w - T * 0.08, height: h - T * 0.26, rx: 2, fill: C.bedSheet }, layers.terrain); // blanket
+    el('rect', { x: x0 + T * 0.04, y: y0 + T * 0.2, width: w - T * 0.08, height: T * 0.1, fill: 'rgba(255,255,255,0.18)' }, layers.terrain); // sheen
+    el('rect', { x: x0 + T * 0.06, y: y0 + T * 0.04, width: w - T * 0.12, height: T * 0.14, rx: 2, fill: C.bedPillow }, layers.terrain); // pillow
+  }
+
+  function drawPlant(x, y, T, C) { // potted plant (indoor)
+    const cx = x * T + T / 2, cy = y * T + T * 0.62;
+    el('path', { d: `M${cx - T * 0.13},${cy} L${cx + T * 0.13},${cy} L${cx + T * 0.1},${cy + T * 0.2} L${cx - T * 0.1},${cy + T * 0.2} Z`, fill: C.plantPot }, layers.terrain);
+    el('circle', { cx: cx - T * 0.1, cy: cy - T * 0.05, r: T * 0.12, fill: C.plantLeaf }, layers.terrain);
+    el('circle', { cx: cx + T * 0.1, cy: cy - T * 0.05, r: T * 0.12, fill: C.plantLeaf }, layers.terrain);
+    el('circle', { cx: cx, cy: cy - T * 0.16, r: T * 0.14, fill: C.plantLeaf }, layers.terrain);
+    el('circle', { cx: cx - T * 0.03, cy: cy - T * 0.19, r: T * 0.07, fill: C.plantLeafHi }, layers.terrain);
   }
 
   function drawLocker(x, y, T, C) {
-    const cx = x * T, cy = y * T, p = T * 0.12;
-    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    const cx = x * T, cy = y * T, p = T * 0.13, x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
     el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.lockerBody, stroke: C.lockerEdge, 'stroke-width': 1.5 }, layers.terrain);
-    el('rect', { x: x0, y: y0, width: w, height: h * 0.12, fill: 'rgba(255,255,255,0.06)' }, layers.terrain); // top highlight
-    el('line', { x1: x0 + w / 2, y1: y0, x2: x0 + w / 2, y2: y0 + h, stroke: C.lockerEdge, 'stroke-width': 1.5 }, layers.terrain); // twin doors
-    [0.34, 0.66].forEach(fx => el('rect', { x: x0 + w * fx - T * 0.015, y: y0 + h * 0.42, width: T * 0.03, height: h * 0.16, rx: 1, fill: C.lockerHandle }, layers.terrain)); // handles
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.14, fill: 'rgba(255,255,255,0.12)' }, layers.terrain); // lit top
+    el('line', { x1: x0 + w / 2, y1: y0, x2: x0 + w / 2, y2: y0 + h, stroke: C.lockerEdge, 'stroke-width': 1.5 }, layers.terrain);
+    [0.34, 0.66].forEach(fx => el('rect', { x: x0 + w * fx - T * 0.015, y: y0 + h * 0.42, width: T * 0.03, height: h * 0.16, rx: 1, fill: C.lockerHandle }, layers.terrain));
   }
 
   function drawConsole(x, y, T, C) {
-    const cx = x * T, cy = y * T, p = T * 0.12;
-    const x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
+    const cx = x * T, cy = y * T, p = T * 0.13, x0 = cx + p, y0 = cy + p, w = T - 2 * p, h = T - 2 * p;
     el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.consoleBody, stroke: C.consoleEdge, 'stroke-width': 1.5 }, layers.terrain);
-    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.14, width: w * 0.68, height: h * 0.40, rx: 1, fill: '#0c0f12', stroke: C.consoleEdge, 'stroke-width': 1 }, layers.terrain); // screen well
-    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.14, width: w * 0.68, height: h * 0.40, rx: 1, fill: C.consoleScreen }, layers.terrain); // dim glow
-    [0.26, 0.40].forEach(fy => el('line', { x1: x0 + w * 0.18, y1: y0 + h * fy, x2: x0 + w * 0.82, y2: y0 + h * fy, stroke: 'rgba(0,0,0,0.22)', 'stroke-width': 1 }, layers.terrain)); // scan lines
-    [0.32, 0.5, 0.68].forEach(fx => el('circle', { cx: x0 + w * fx, cy: y0 + h * 0.74, r: T * 0.03, fill: C.lockerHandle }, layers.terrain)); // buttons
+    el('rect', { x: x0, y: y0, width: w, height: h * 0.14, fill: 'rgba(255,255,255,0.1)' }, layers.terrain); // lit top
+    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.16, width: w * 0.68, height: h * 0.40, rx: 1, fill: '#0c0f12', stroke: C.consoleEdge, 'stroke-width': 1 }, layers.terrain);
+    el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.16, width: w * 0.68, height: h * 0.40, rx: 1, fill: C.consoleScreen }, layers.terrain); // teal screen
+    [0.28, 0.42].forEach(fy => el('line', { x1: x0 + w * 0.18, y1: y0 + h * fy, x2: x0 + w * 0.82, y2: y0 + h * fy, stroke: 'rgba(0,0,0,0.22)', 'stroke-width': 1 }, layers.terrain));
+    [0.32, 0.5, 0.68].forEach(fx => el('circle', { cx: x0 + w * fx, cy: y0 + h * 0.76, r: T * 0.03, fill: C.lockerHandle }, layers.terrain));
   }
 
-  function drawBed(x, y, T, C) {
-    const cx = x * T, cy = y * T, x0 = cx + T * 0.16, y0 = cy + T * 0.13, w = T * 0.68, h = T * 0.74;
-    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.bedFrame }, layers.terrain);
-    el('rect', { x: x0 + T * 0.04, y: y0 + T * 0.18, width: w - T * 0.08, height: h - T * 0.22, rx: 2, fill: C.bedSheet }, layers.terrain); // sheet
-    el('rect', { x: x0 + T * 0.06, y: y0 + T * 0.04, width: w - T * 0.12, height: T * 0.14, rx: 2, fill: C.bedPillow }, layers.terrain);   // pillow
-  }
-
-  function drawTree(x, y, T, C) {
+  function drawTree(x, y, T, C) { // green canopy on the original's signature yellow forked trunk
     const cx = x * T + T / 2, cy = y * T + T / 2;
-    el('rect', { x: cx - T * 0.06, y: cy + T * 0.16, width: T * 0.12, height: T * 0.28, fill: C.treeTrunk }, layers.terrain); // trunk
-    el('circle', { cx: cx, cy: cy - T * 0.02, r: T * 0.34, fill: C.treeCanopy }, layers.terrain);                              // canopy
-    el('circle', { cx: cx - T * 0.16, cy: cy + T * 0.04, r: T * 0.2, fill: C.treeCanopy2 }, layers.terrain);
-    el('circle', { cx: cx + T * 0.16, cy: cy + T * 0.02, r: T * 0.19, fill: C.treeCanopy2 }, layers.terrain);
-    el('circle', { cx: cx + T * 0.04, cy: cy - T * 0.17, r: T * 0.15, fill: C.treeCanopy2 }, layers.terrain);
+    el('ellipse', { cx: cx, cy: cy + T * 0.36, rx: T * 0.26, ry: T * 0.08, fill: 'rgba(0,0,0,0.28)' }, layers.terrain); // ground shadow
+    el('path', { d: `M${cx},${cy + T * 0.08} L${cx},${cy + T * 0.44} M${cx},${cy + T * 0.22} L${cx - T * 0.13},${cy + T * 0.44} M${cx},${cy + T * 0.22} L${cx + T * 0.13},${cy + T * 0.44}`, fill: 'none', stroke: C.treeTrunk, 'stroke-width': T * 0.06, 'stroke-linecap': 'round' }, layers.terrain);
+    el('circle', { cx: cx, cy: cy - T * 0.04, r: T * 0.32, fill: C.treeCanopy }, layers.terrain);
+    el('circle', { cx: cx - T * 0.15, cy: cy + T * 0.02, r: T * 0.19, fill: C.treeCanopy2 }, layers.terrain);
+    el('circle', { cx: cx + T * 0.15, cy: cy, r: T * 0.18, fill: C.treeCanopy2 }, layers.terrain);
+    el('circle', { cx: cx - T * 0.03, cy: cy - T * 0.18, r: T * 0.15, fill: C.treeCanopyHi }, layers.terrain); // top highlight
   }
 
   function drawShrub(x, y, T, C) {
-    const cx = x * T + T / 2, cy = y * T + T * 0.62;
-    el('circle', { cx: cx - T * 0.15, cy: cy, r: T * 0.16, fill: C.shrubBody }, layers.terrain);
-    el('circle', { cx: cx + T * 0.15, cy: cy, r: T * 0.16, fill: C.shrubBody }, layers.terrain);
-    el('circle', { cx: cx, cy: cy - T * 0.09, r: T * 0.19, fill: C.shrubBody }, layers.terrain);
-    el('circle', { cx: cx - T * 0.04, cy: cy - T * 0.13, r: T * 0.1, fill: C.shrubHi }, layers.terrain);
+    const cx = x * T + T / 2, cy = y * T + T * 0.58;
+    el('ellipse', { cx: cx, cy: cy + T * 0.18, rx: T * 0.2, ry: T * 0.06, fill: 'rgba(0,0,0,0.22)' }, layers.terrain);
+    el('circle', { cx: cx - T * 0.14, cy: cy, r: T * 0.15, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx + T * 0.14, cy: cy, r: T * 0.15, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx, cy: cy - T * 0.08, r: T * 0.18, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx - T * 0.04, cy: cy - T * 0.12, r: T * 0.09, fill: C.shrubHi }, layers.terrain);
+  }
+
+  function drawReed(x, y, T, C) { // pale-cyan reed tuft (passable)
+    const cx = x * T + T / 2, base = y * T + T * 0.8;
+    [[-0.16, -0.34], [-0.07, -0.44], [0.03, -0.42], [0.13, -0.34], [-0.11, -0.28], [0.09, -0.26]].forEach(([bx, ty]) =>
+      el('line', { x1: cx + T * bx, y1: base, x2: cx + T * (bx * 0.4), y2: base + T * ty, stroke: C.reedBlade, 'stroke-width': T * 0.045, 'stroke-linecap': 'round' }, layers.terrain));
+    el('line', { x1: cx - T * 0.02, y1: base, x2: cx + T * 0.04, y2: base - T * 0.42, stroke: C.reedHi, 'stroke-width': T * 0.03, 'stroke-linecap': 'round' }, layers.terrain);
+  }
+
+  function drawFlowerbed(x, y, T, C) { // rows of little flowers (passable), colour varies by tile
+    const cx = x * T, cy = y * T;
+    const schemes = [['#ececf0', '#ecc83a'], ['#e85aa0', '#e85050'], ['#5ad0e8', '#c85ae8']];
+    const sch = schemes[(x * 3 + y) % schemes.length];
+    [[0.24, 0.32], [0.5, 0.26], [0.76, 0.34], [0.36, 0.56], [0.64, 0.58], [0.5, 0.78], [0.22, 0.74], [0.78, 0.72]].forEach(([fx, fy], i) => {
+      el('line', { x1: cx + T * fx, y1: cy + T * fy, x2: cx + T * fx, y2: cy + T * (fy + 0.1), stroke: C.flowerStem, 'stroke-width': 1.2 }, layers.terrain);
+      el('circle', { cx: cx + T * fx, cy: cy + T * fy, r: T * 0.05, fill: sch[i % 2] }, layers.terrain);
+    });
   }
 
   function drawOverlay(T, C) {

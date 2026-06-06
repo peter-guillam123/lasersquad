@@ -53,6 +53,18 @@ LS.config = {
     groundB: '#35423a',
     floorA:  '#4a443d',
     floorB:  '#464039',
+    // --- Assassins art pass: terrain inspired by the 1988 original ---
+    grassBase:  '#0e150c',  // dark soil
+    grassFleckA:'#2c5e2e',  // scattered grass specks (two tones)
+    grassFleckB:'#3f8442',
+    floorBase:  '#0f1318',  // interior tile
+    floorGrid:  'rgba(78,126,196,0.42)', // blue grout grid
+    wallFace:   '#737a83',  // stone wall — one light grey for every wall
+    wallTopLt:  '#9ca3ad',  // lit top/edge (light from screen-top)
+    wallEdge:   '#2b2f35',
+    wallMortar: 'rgba(28,30,36,0.5)',
+    doorGold:   '#c8a23c',  // gold door leaf / frame
+    doorGoldDk: '#7d631e',
     door:    '#5b5048',
     wall:    '#21242a',
     wallTop: '#2e333b',
@@ -67,27 +79,37 @@ LS.config = {
     doorSteelFrame:'#3a4048',
     glass:   'rgba(140,195,225,0.30)',  // intact window pane
     glassEdge:'rgba(175,215,240,0.75)', // window mullions / frame
-    // decor objects (cover). Low cover = crate/desk; tall cover = locker/console.
-    crateTop:  '#7a6242',  // crate lid (lighter top face)
-    crateBody: '#5f4c34',  // crate sides
-    crateEdge: 'rgba(0,0,0,0.38)',
-    crateBrace:'#8a6e49',  // the X-brace banding
-    deskTop:   '#6a5942',  // desk surface
-    deskLeg:   '#3f3527',  // desk legs
-    lockerBody:'#49545f',  // tall steel locker
-    lockerEdge:'#2c343c',
-    lockerHandle:'#8d99a6',
-    consoleBody:'#3a4048',          // machinery console
-    consoleEdge:'#262b31',
-    consoleScreen:'rgba(90,200,170,0.45)', // dim teal screen glow (kept low so overlays still read)
-    bedFrame:'#4a3f33',  // bed (low cover)
-    bedSheet:'#6a7b8c',
-    bedPillow:'#9aa7b3',
-    treeCanopy:'#2f6b3a', // tree (tall cover, outdoors)
-    treeCanopy2:'#3a7d45',
-    treeTrunk:'#4a3a28',
-    shrubBody:'#356b3e',  // shrub (low cover, outdoors)
-    shrubHi:'#43824d',
+    // decor objects, palette drawn from the original Assassins map
+    crateTop:  '#8a6e44',  // wooden crate lid
+    crateBody: '#624d31',  // crate sides
+    crateEdge: 'rgba(0,0,0,0.4)',
+    crateBrace:'#9c7c4c',  // X-brace banding
+    tableTop:  '#3fc6cf',  // cyan dining table
+    tableTopHi:'#86e6ec',
+    tableLeg:  '#1f6e74',
+    chair:     '#8b929c',  // grey chairs around a table
+    lockerBody:'#7a818a',  // grey steel cabinet (matches walls)
+    lockerEdge:'#34383e',
+    lockerHandle:'#c2c8d0',
+    consoleBody:'#4a525c',          // grey console
+    consoleEdge:'#272c32',
+    consoleScreen:'rgba(96,206,176,0.6)', // teal screen
+    bedFrame:'#6a5526',  // yellow bed
+    bedSheet:'#d8b836',
+    bedPillow:'#f1e7b2',
+    treeCanopy:'#2f6b34', // tree (tall cover, outdoors)
+    treeCanopy2:'#3e8746',
+    treeCanopyHi:'#58a85f',
+    treeTrunk:'#c7a23c',  // bright yellow/ochre forked trunk (the original's signature)
+    treeTrunkDk:'#8a6d22',
+    shrubBody:'#347d3d',  // shrub (low cover, outdoors)
+    shrubHi:'#4fa057',
+    reedBlade:'#5fbcc6',  // pale-cyan reed tufts (passable field flora)
+    reedHi:'#a6e6ec',
+    flowerStem:'#3a8a45', // flowerbeds (passable field flora)
+    plantPot:'#9c6238',   // potted plant (indoor)
+    plantLeaf:'#3a9048',
+    plantLeafHi:'#56b061',
     grid:    'rgba(255,255,255,0.045)',
     blue:    '#4aa3ff',
     blueDark:'#1f5fa6',
