@@ -8,6 +8,17 @@ LS.ui = (function () {
   // the id stays 'blue' everywhere in the game logic — this only changes the on-screen text.
   const TEAM_LABEL = { blue: 'Yellow', red: 'Red' };
   const teamLabel = t => (TEAM_LABEL[t] || t).toUpperCase();
+  let lastLogLen = 0, feedTimer = null; // for the on-screen event feed
+  function classify(m) {                // colour-code a log line for the feed
+    const s = m.toLowerCase();
+    if (s.includes('down') || s.includes('eliminated') || s.includes('wins')) return 'kill';
+    if (s.includes('grenade') || s.includes('blast')) return 'grenade';
+    if (s.includes('shatter') || s.includes('window') || s.includes('glass')) return 'glass';
+    if (s.includes('hits')) return 'hit';
+    if (s.includes('misses')) return 'miss';
+    if (s.includes('turn') || s.startsWith('—')) return 'turn';
+    return '';
+  }
   function update() {
     const s = LS.state;
     // turn banner
@@ -18,9 +29,18 @@ LS.ui = (function () {
     const rl = document.querySelector('.roster-label.blue'); if (rl) rl.textContent = teamLabel('blue');
     const rr = document.querySelector('.roster-label.red'); if (rr) rr.textContent = teamLabel('red');
 
-    // log
-    const log = document.getElementById('log');
-    if (log) { log.innerHTML = s.log.slice(-9).map(m => `<div>${m}</div>`).join(''); log.scrollTop = log.scrollHeight; }
+    // on-screen event feed: recent events flash over the board (colour-coded), then fade when idle
+    const feed = document.getElementById('feed');
+    if (feed) {
+      feed.innerHTML = s.log.slice(-4).reverse()
+        .map((m, i) => `<div class="feed-line ${classify(m)}" style="opacity:${[1, 0.72, 0.52, 0.4][i] || 0.4}">${m}</div>`).join('');
+      if (s.log.length !== lastLogLen) {   // a new event arrived → flash it up, then fade after a beat
+        lastLogLen = s.log.length;
+        feed.classList.add('show');
+        clearTimeout(feedTimer);
+        feedTimer = setTimeout(() => feed.classList.remove('show'), 4200);
+      }
+    }
 
     // squad rosters (each soldier's card carries its own grenade button now)
     renderRoster('roster-blue', 'blue');

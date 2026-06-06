@@ -90,6 +90,26 @@ body::after {
 .map-name { color: var(--muted); font-size: 11px; margin: 0; letter-spacing: 1px; }
 .map-name::before { content: "// "; color: var(--line); }
 
+/* on-screen event feed: recent events flash over the top of the board, then fade when idle */
+.feed {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  max-width: 78%; z-index: 1; pointer-events: none;
+  display: flex; flex-direction: column; gap: 4px; align-items: center; text-align: center;
+  opacity: 0; transition: opacity 0.5s ease;
+}
+.feed.show { opacity: 1; }
+.feed-line {
+  font-size: 13px; letter-spacing: 0.4px; padding: 3px 11px; line-height: 1.3;
+  background: rgba(8,10,6,0.82); border: 1px solid var(--line); border-radius: 2px; color: var(--ink);
+}
+.feed-line::before { content: "» "; color: var(--muted); }
+.feed-line.kill    { color: var(--red); border-color: rgba(255,99,89,0.55); font-weight: 700; }
+.feed-line.hit     { color: var(--amber); }
+.feed-line.miss    { color: var(--muted); }
+.feed-line.grenade { color: #ffae3c; border-color: rgba(255,174,60,0.4); }
+.feed-line.glass   { color: #7fd0e0; }
+.feed-line.turn    { color: var(--muted); }
+
 .overlay {
   position: absolute; inset: 0; display: none;
   flex-direction: column; align-items: center; justify-content: center; gap: 18px;
