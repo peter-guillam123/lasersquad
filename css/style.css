@@ -5,7 +5,7 @@
   --ink: #d6dbe2;
   --muted: #8a93a0;
   --line: #2c323c;
-  --blue: #4aa3ff;
+  --blue: #f2c21e; /* the player team renders yellow; its id stays 'blue' in code */
   --red: #ff5d5d;
   --gold: #ffd166;
 }
@@ -47,7 +47,7 @@ body {
   font-weight: 800; letter-spacing: 2px; font-size: 13px;
   padding: 6px 14px; border-radius: 6px;
 }
-.turn-banner.blue { background: rgba(74,163,255,0.16); color: var(--blue); }
+.turn-banner.blue { background: rgba(242,194,30,0.16); color: var(--blue); }
 .turn-banner.red  { background: rgba(255,93,93,0.16); color: var(--red); }
 .turn-banner.over { background: rgba(255,209,102,0.16); color: var(--gold); }
 
@@ -141,7 +141,7 @@ body {
   font-size: 12px; font-weight: 700; cursor: pointer;
   border: 2px solid transparent;
 }
-.pip.blue { background: rgba(74,163,255,0.18); color: var(--blue); }
+.pip.blue { background: rgba(242,194,30,0.18); color: var(--blue); }
 .pip.red  { background: rgba(255,93,93,0.18); color: var(--red); }
 .pip.sel  { border-color: var(--gold); }
 .pip.dead { opacity: 0.3; cursor: default; }
@@ -155,10 +155,10 @@ body {
   border-left: 3px solid transparent; border-radius: 8px;
   padding: 7px 9px; cursor: pointer;
 }
-.squad-card.blue { border-left-color: rgba(74,163,255,0.55); }
+.squad-card.blue { border-left-color: rgba(242,194,30,0.55); }
 .squad-card.red  { border-left-color: rgba(255,93,93,0.55); }
 /* turn state, shown on the left border (and an icon): fresh -> can still react -> low -> spent */
-.squad-card.st-fresh { border-left-color: rgba(74,163,255,0.7); }
+.squad-card.st-fresh { border-left-color: rgba(242,194,30,0.7); }
 .squad-card.st-ready { border-left-color: #6bd86b; }
 .squad-card.st-low   { border-left-color: #e0b13a; }
 .squad-card.st-spent { border-left-color: #6b7480; opacity: 0.6; }
