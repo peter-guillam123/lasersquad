@@ -241,8 +241,12 @@ LS.ai = (function () {
       if (wasVisible) { // visible to the human: glide it so they can watch
         LS.render.followUnit(unit);
         LS.render.animateStep(unit, from, to, finishStep);
+      } else if (LS.config.anim.enabled) {
+        // off in the dark: no visuals, but pace a footfall so you hear the enemy on the move
+        LS.sound.play('step');
+        setTimeout(finishStep, 130);
       } else {
-        finishStep(); // off in the dark: resolve instantly, no camera move
+        finishStep();
       }
     }
     step();
