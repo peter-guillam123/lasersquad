@@ -82,7 +82,7 @@ body::after {
 }
 #board {
   display: block;
-  width: min(74vw, 1120px);
+  width: min(68vw, 1160px);
   height: auto;
   background: #0a0c08;
   cursor: pointer;
@@ -206,6 +206,16 @@ body::after {
 .sc-bar { flex: 1; height: 6px; background: #07090a; border: 1px solid var(--line); border-radius: 1px; overflow: hidden; }
 .sc-bar i { display: block; height: 100%; }
 .sc-num { width: 22px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); }
+/* per-soldier grenade button (replaces the old standalone Throw button) */
+.sc-throw {
+  display: inline-flex; align-items: center; gap: 3px;
+  background: none; border: 1px solid var(--line); border-radius: 2px;
+  color: var(--amber); font: inherit; font-size: 11px; line-height: 1; padding: 2px 5px; cursor: pointer;
+}
+.sc-throw svg { display: block; }
+.sc-throw:hover:not(:disabled) { border-color: var(--amber); background: rgba(230,173,51,0.14); }
+.sc-throw:disabled { color: var(--muted); opacity: 0.45; cursor: default; }
+.sc-throw.arming { background: rgba(255,174,60,0.22); border-color: #ffae3c; color: #ffae3c; }
 
 .unit-card {
   background: var(--panel);

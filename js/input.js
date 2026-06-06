@@ -398,32 +398,30 @@ LS.input = (function () {
         afterTurnChange();
       }
     });
-    document.getElementById('throw-btn').addEventListener('click', () => {
-      if (LS.state.busy || LS.state.over || LS.state.handoff) return;
-      const sel = LS.game.selected();
-      if (!sel || sel.team !== LS.state.activeTeam) return;
-      if (LS.state.throwMode) {
-        LS.state.throwMode = null;
-      } else if (sel.grenades <= 0) {
-        LS.game.log('No grenades left.');
-      } else if (sel.ap < LS.config.grenade.throwCost) {
-        LS.game.log('Not enough AP to throw.');
-      } else {
-        LS.state.throwMode = sel.id;
-      }
-      LS.render.draw();
-    });
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); return; }
       const T = LS.config.tile;
       const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
       if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); }
     });
-    // click a roster card/pip to select that soldier (if it's yours and your turn)
+    // click a soldier's card to select it, or its grenade button to aim a throw
     document.querySelector('.rosters').addEventListener('click', (e) => {
-      const pip = e.target.closest('[data-id]');
-      if (!pip || LS.state.busy || LS.state.over) return;
-      const u = LS.game.unitById(pip.dataset.id);
+      if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+      const tb = e.target.closest('.sc-throw');
+      if (tb) {
+        const u = LS.game.unitById(tb.dataset.throw);
+        if (u && u.alive && u.team === LS.state.activeTeam) {
+          const wasArming = LS.state.throwMode === u.id;
+          LS.game.selectUnit(u.id);                      // note: selectUnit() clears throwMode
+          LS.state.throwMode = wasArming ? null : u.id;  // so toggle off the *prior* state
+          LS.render.followUnit(u);
+          LS.render.draw();
+        }
+        return;
+      }
+      const card = e.target.closest('[data-id]');
+      if (!card) return;
+      const u = LS.game.unitById(card.dataset.id);
       if (u && u.alive && u.team === LS.state.activeTeam) {
         LS.game.selectUnit(u.id);
         LS.render.followUnit(u);   // pan to it (it may be off-screen)
