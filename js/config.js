@@ -5,7 +5,7 @@ LS.config = {
   cols: 44,            // map size (can exceed the viewport — the camera scrolls)
   rows: 32,
   tile: 44,            // pixel size of one grid square
-  view: { cols: 16, rows: 12 }, // visible window onto the map (in tiles)
+  view: { cols: 22, rows: 15 }, // visible window onto the map (desktop-first: show a big chunk of the battlefield)
   aiTeams: ['red'],    // teams played by the computer; empty = hot-seat two-player
 
   ap: {

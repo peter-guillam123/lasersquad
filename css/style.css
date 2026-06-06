@@ -82,7 +82,7 @@ body::after {
 }
 #board {
   display: block;
-  width: min(70vw, 704px);
+  width: min(74vw, 1120px);
   height: auto;
   background: #0a0c08;
   cursor: pointer;
@@ -262,7 +262,5 @@ body::after {
 .help ul { margin: 0; padding-left: 16px; }
 .help li { margin: 4px 0; }
 
-@media (max-width: 880px) {
-  #board { width: 92vw; }
-  .panel { width: 92vw; }
-}
+/* desktop-first: this game targets a big screen. Narrow screens still wrap (board over panel)
+   via the .game flex-wrap, but aren't a design target. */
