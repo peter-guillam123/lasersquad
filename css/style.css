@@ -265,6 +265,7 @@ body::after {
 .end-turn { background: rgba(230,173,51,0.14); color: var(--amber); border-color: rgba(230,173,51,0.55); }
 .end-turn:hover { background: rgba(230,173,51,0.22); color: var(--amber); }
 .end-turn:disabled { opacity: 0.4; cursor: default; }
+.end-turn.warn { background: rgba(255,99,89,0.18); color: var(--red); border-color: rgba(255,99,89,0.55); }
 .throw-btn:disabled { opacity: 0.4; cursor: default; }
 .throw-btn.arming { background: rgba(255,174,60,0.2); color: #ffae3c; border-color: #ffae3c; }
 

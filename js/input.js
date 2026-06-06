@@ -2,6 +2,7 @@
 LS.input = (function () {
   let svg, hoverTile = { x: null, y: null }, hoverDir = -1, hoverQueued = false;
   let drag = null, suppressClick = false; // drag-to-pan state
+  let endConfirm = false, endConfirmTimer = null; // end-turn guard (a second press confirms)
 
   function pointFromEvent(e) {
     const rect = svg.getBoundingClientRect();
@@ -368,6 +369,31 @@ LS.input = (function () {
     LS.render.draw();
   }
 
+  // end turn — but guard against ending with soldiers who could still shoot (a misclick wastes the turn).
+  // a first press warns; a second press within the window, or no ready soldiers, actually ends.
+  function resetEndConfirm() {
+    endConfirm = false; clearTimeout(endConfirmTimer);
+    const b = document.getElementById('end-turn');
+    if (b) { b.textContent = 'End turn ▸'; b.classList.remove('warn'); }
+  }
+  function doEndTurn() {
+    resetEndConfirm();
+    if (LS.state.liveGrenades.length) detonateLive(() => { LS.game.endTurn(); afterTurnChange(); });
+    else { LS.game.endTurn(); afterTurnChange(); }
+  }
+  function tryEndTurn() {
+    if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+    const ready = LS.game.teamUnits(LS.state.activeTeam).some(u => u.ap >= LS.level.weapon.fireCost);
+    if (ready && !endConfirm) {
+      endConfirm = true;
+      const b = document.getElementById('end-turn');
+      b.textContent = 'End anyway? ▸'; b.classList.add('warn');
+      clearTimeout(endConfirmTimer); endConfirmTimer = setTimeout(resetEndConfirm, 3000);
+      return;
+    }
+    doEndTurn();
+  }
+
   function showStartScreen() {
     document.getElementById('start-screen').style.display = 'flex';
   }
@@ -389,22 +415,35 @@ LS.input = (function () {
     window.addEventListener('mousemove', onDragMove);
     window.addEventListener('mouseup', onDragEnd);
     svg.addEventListener('mouseleave', () => { if (!drag) { hoverDir = -1; LS.render.drawFacing(-1); LS.render.drawHover(null, null); } });
-    document.getElementById('end-turn').addEventListener('click', () => {
-      if (LS.state.busy || LS.state.over || LS.state.handoff) return;
-      if (LS.state.liveGrenades.length) {
-        detonateLive(() => { LS.game.endTurn(); afterTurnChange(); });
-      } else {
-        LS.game.endTurn();
-        afterTurnChange();
-      }
-    });
+    document.getElementById('end-turn').addEventListener('click', tryEndTurn);
     document.addEventListener('keydown', (e) => {
       const hm = document.getElementById('howto');
-      if (e.key === 'Escape' && hm.style.display !== 'none') { hm.style.display = 'none'; return; }
-      if (e.key === 'Escape' && LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); return; }
+      if (e.key === 'Escape') {                       // close modal > cancel throw > deselect
+        if (hm.style.display !== 'none') { hm.style.display = 'none'; return; }
+        if (LS.state.throwMode) { LS.state.throwMode = null; LS.render.draw(); return; }
+        if (LS.game.selected()) { LS.game.selectUnit(null); LS.render.draw(); return; }
+        return;
+      }
+      if (hm.style.display !== 'none') return;         // modal open: swallow game keys
       const T = LS.config.tile;
       const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
-      if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); }
+      if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); return; }
+      // the rest are your-turn shortcuts
+      if (LS.state.busy || LS.state.over || LS.state.handoff || LS.game.isAI(LS.state.activeTeam)) return;
+      if (e.key === 'e' || e.key === 'E') { tryEndTurn(); e.preventDefault(); return; }
+      if (e.key >= '1' && e.key <= '9') {              // select the Nth soldier of your squad
+        const u = LS.game.teamUnits(LS.state.activeTeam)[+e.key - 1];
+        if (u) { LS.game.selectUnit(u.id); LS.render.followUnit(u); LS.render.draw(); }
+        return;
+      }
+      if (e.key === 'g' || e.key === 'G') {            // toggle the selected soldier's grenade aim
+        const sel = LS.game.selected();
+        if (sel && sel.team === LS.state.activeTeam && sel.grenades > 0 && sel.ap >= LS.config.grenade.throwCost) {
+          LS.state.throwMode = LS.state.throwMode === sel.id ? null : sel.id;
+          LS.render.draw();
+        }
+        return;
+      }
     });
     // click a soldier's card to select it, or its grenade button to aim a throw
     document.querySelector('.rosters').addEventListener('click', (e) => {
@@ -429,6 +468,12 @@ LS.input = (function () {
         LS.render.followUnit(u);   // pan to it (it may be off-screen)
         LS.render.draw();
       }
+    });
+    // keyboard: Enter/Space on a focused squad card selects it (the grenade button is a native button)
+    document.querySelector('.rosters').addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target.closest('.squad-card[data-id]');
+      if (card) { e.preventDefault(); card.click(); }
     });
     document.getElementById('restart').addEventListener('click', showStartScreen); // back to the menu to re-pick a mode
     document.getElementById('start-hotseat').addEventListener('click', () => { LS.sound.ensure(); startGame([]); });
