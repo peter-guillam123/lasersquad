@@ -70,9 +70,11 @@ LS.config = {
     wallTop: '#2e333b',
     wallWeak:'#3a3d45',   // breakable wall (reads lighter than the reinforced one)
     crack:   'rgba(16,17,21,0.6)', // hairline crack on a breakable wall
-    rubble:  '#6b5d49',   // debris where a wall/door was blown open (passable)
-    crater:  '#070809',   // blast crater (impassable hole)
-    craterEdge:'rgba(0,0,0,0.5)',
+    rubble:  '#6b7079',   // broken stone where a wall/door was blown open (passable)
+    rubbleLt:'#969ca5',   // lit top of a rubble chunk
+    crater:  '#0a0b0d',   // blast crater pit (impassable hole)
+    craterRim:'#241d12',  // charred raised rim
+    craterEjecta:'#4a3d28', // scorched debris flung around it
     doorLeaf:'#856a4b',   // a closed wooden door
     doorFrame:'#4a3f33',  // door posts / frame
     doorSteel:'#5e6772',  // a reinforced (blast-proof) door

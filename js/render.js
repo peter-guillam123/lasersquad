@@ -187,7 +187,7 @@ LS.render = (function () {
         const floorLike = ch === '_' || ch === 'D' || ch === 'R' || (decor && !outdoorDecor); // indoor decor sits on a floor
         const isWallTile = (ch === '#' || ch === 'x' || ch === 'W') && !rubbled;
         let base;
-        if (rubbled) base = 'url(#floor)';                       // blown open -> floor
+        if (rubbled) base = borderingInterior(x, y) ? 'url(#floor)' : 'url(#grass)'; // blown open
         else if (isWallTile) base = borderingInterior(x, y) ? 'url(#floor)' : 'url(#grass)'; // shows beside thin N-S walls
         else if (floorLike) base = 'url(#floor)';
         else base = 'url(#grass)';                               // '.' ground (grass)
@@ -261,19 +261,24 @@ LS.render = (function () {
     if (w && w.hp < w.max) el('rect', { x: x * T, y: y * T, width: T, height: T, fill: 'rgba(0,0,0,0.24)' }, layers.terrain); // scorched but holding
   }
 
-  function drawRubble(x, y, T, C) {
+  function drawRubble(x, y, T, C) { // broken stone chunks of a blown wall, low and passable
     const cx = x * T, cy = y * T;
-    [[0.22, 0.28], [0.56, 0.4], [0.38, 0.66], [0.72, 0.7], [0.3, 0.52]].forEach(([fx, fy], i) => {
-      const s = T * (0.1 + (i % 3) * 0.03);
-      el('rect', { x: cx + T * fx, y: cy + T * fy, width: s, height: s, rx: 1.5, fill: C.rubble, opacity: 0.8 }, layers.terrain);
+    [[0.24, 0.30, 0.20], [0.58, 0.34, 0.23], [0.40, 0.60, 0.21], [0.72, 0.64, 0.16], [0.22, 0.58, 0.15], [0.56, 0.74, 0.14]].forEach(([fx, fy, sz]) => {
+      const x0 = cx + T * fx, y0 = cy + T * fy, s = T * sz;
+      el('rect', { x: x0 + 1, y: y0 + 1.5, width: s, height: s * 0.8, rx: 1.5, fill: 'rgba(0,0,0,0.38)' }, layers.terrain); // AO
+      el('rect', { x: x0, y: y0, width: s, height: s * 0.8, rx: 1.5, fill: C.rubble }, layers.terrain);
+      el('rect', { x: x0, y: y0, width: s, height: s * 0.32, rx: 1.5, fill: C.rubbleLt }, layers.terrain);                  // lit top
     });
   }
 
-  function drawCrater(x, y, T, C) {
+  function drawCrater(x, y, T, C) { // charred blast pit (impassable)
     const cx = x * T + T / 2, cy = y * T + T / 2;
-    el('circle', { cx, cy, r: T * 0.46, fill: 'none', stroke: 'rgba(70,48,22,0.5)', 'stroke-width': 3 }, layers.terrain); // scorched rim
-    el('circle', { cx, cy, r: T * 0.42, fill: C.crater, stroke: C.craterEdge, 'stroke-width': 2 }, layers.terrain);
-    el('circle', { cx, cy, r: T * 0.24, fill: '#000', opacity: 0.5 }, layers.terrain);
+    [[0.5, -0.42], [-0.46, 0.12], [0.44, 0.22], [-0.22, -0.44], [0.18, 0.46], [-0.44, -0.2]].forEach(([dx, dy]) =>
+      el('circle', { cx: cx + T * dx, cy: cy + T * dy, r: T * 0.045, fill: C.craterEjecta, opacity: 0.75 }, layers.terrain)); // ejecta
+    el('circle', { cx, cy, r: T * 0.44, fill: C.craterRim }, layers.terrain);            // charred raised rim
+    el('circle', { cx, cy: cy + T * 0.03, r: T * 0.35, fill: C.crater }, layers.terrain); // pit (nudged down for depth)
+    el('circle', { cx, cy: cy + T * 0.05, r: T * 0.2, fill: '#000', opacity: 0.6 }, layers.terrain); // deep centre
+    el('path', { d: `M${cx - T * 0.3},${cy - T * 0.16} A ${T * 0.36} ${T * 0.36} 0 0 1 ${cx + T * 0.3},${cy - T * 0.16}`, fill: 'none', stroke: 'rgba(255,255,255,0.1)', 'stroke-width': 2, 'stroke-linecap': 'round' }, layers.terrain); // top rim sheen
   }
 
   // doors/windows orient along the wall they sit in (barriers above & below => vertical wall run)
