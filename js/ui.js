@@ -4,10 +4,8 @@ LS.ui = (function () {
   const ICON_EYE = '<svg class="sc-ic" viewBox="0 0 16 12" width="15" height="11" aria-hidden="true"><path d="M1 6 Q8 0.5 15 6 Q8 11.5 1 6Z" fill="none" stroke="#6bd86b" stroke-width="1.4"/><circle cx="8" cy="6" r="2.1" fill="#6bd86b"/></svg>';
   const ICON_SPENT = '<svg class="sc-ic" viewBox="0 0 12 12" width="12" height="12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="#8a93a0" stroke-width="1.4"/><line x1="2.6" y1="9.4" x2="9.4" y2="2.6" stroke="#8a93a0" stroke-width="1.4"/></svg>';
   const ICON_NADE = '<svg viewBox="0 0 14 16" width="11" height="13" aria-hidden="true"><rect x="5" y="0.5" width="4" height="2.2" rx="0.6" fill="currentColor"/><rect x="8.4" y="1" width="2.6" height="1.4" rx="0.4" fill="currentColor"/><rect x="6" y="2.5" width="2" height="2.2" fill="currentColor"/><circle cx="7" cy="10" r="5" fill="currentColor"/></svg>';
-  // team display names: the 'blue' team id now wears yellow marine armour, so it reads as "Yellow".
-  // the id stays 'blue' everywhere in the game logic — this only changes the on-screen text.
-  const TEAM_LABEL = { blue: 'Yellow', red: 'Red' };
-  const teamLabel = t => (TEAM_LABEL[t] || t).toUpperCase();
+  // the 'blue' team id reads as "Yellow" on screen (see LS.util.teamName — one source of truth)
+  const teamLabel = t => LS.util.teamName(t).toUpperCase();
   let lastLogLen = 0, feedTimer = null; // for the on-screen event feed
   function classify(m) {                // colour-code a log line for the feed
     const s = m.toLowerCase();

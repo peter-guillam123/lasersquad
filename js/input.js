@@ -331,7 +331,7 @@ LS.input = (function () {
   // a brief team-coloured "[TEAM] turn" sweep that auto-dismisses, then runs `done`
   function showTurnIntro(team, sub, done) {
     const ti = document.getElementById('turn-intro'), lbl = ti.querySelector('.ti-team');
-    lbl.textContent = team.toUpperCase();
+    lbl.textContent = LS.util.teamName(team).toUpperCase();
     lbl.className = 'ti-team ' + team;
     ti.querySelector('.ti-sub').textContent = sub;
     ti.classList.remove('show'); void ti.offsetWidth; // restart the animation

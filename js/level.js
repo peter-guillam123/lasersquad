@@ -7,7 +7,7 @@
 // 44 x 32, scrolls. 'The Assassins': blue breaches the estate from the west; red holds the mansion.
 LS.level = {
   name: '1 — The Assassins',
-  brief: 'Blue squad breaches the estate from the west. Red squad holds the mansion. Wipe out the opposing squad.',
+  brief: 'Yellow squad breaches the estate from the west. Red squad holds the mansion. Wipe out the opposing squad.',
   map: [
     '............................................',
     '............................................',

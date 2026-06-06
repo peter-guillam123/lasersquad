@@ -149,6 +149,8 @@ LS.DIRS = [
 LS.util = {
   clamp: (v, lo, hi) => Math.max(lo, Math.min(hi, v)),
   randInt: (lo, hi) => lo + Math.floor(Math.random() * (hi - lo + 1)),
+  // the player team's id is 'blue' but it displays as Yellow. ONE place for the display name.
+  teamName: (t) => ({ blue: 'Yellow', red: 'Red' }[t] || t),
   dirIndex(dx, dy) {
     const sx = Math.sign(dx), sy = Math.sign(dy);
     return LS.DIRS.findIndex(d => d.dx === sx && d.dy === sy);

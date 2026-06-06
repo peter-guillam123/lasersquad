@@ -1,6 +1,6 @@
 // game.js — the single source of truth. State lives here; the SVG just reflects it.
 LS.game = (function () {
-  const { clamp, randInt, dirIndex } = LS.util;
+  const { clamp, randInt, dirIndex, teamName } = LS.util;
 
   function newGame() {
     const units = LS.level.units.map(u => ({
@@ -40,7 +40,7 @@ LS.game = (function () {
           LS.state.wallHp.set(key(x, y), { hp, max: hp });
         }
     observe();
-    log('Blue squad, move out. Click one of your soldiers.');
+    log(`${teamName('blue')} squad, move out. Click one of your soldiers.`);
     return LS.state;
   }
 
@@ -379,7 +379,7 @@ LS.game = (function () {
     LS.state.selectedId = null;
     LS.state.reach = null;
     LS.state.handoff = true; // hold at the pass-the-device screen until the next player is ready
-    log(`— ${LS.state.activeTeam.toUpperCase()} turn —`);
+    log(`— ${teamName(LS.state.activeTeam).toUpperCase()} turn —`);
   }
 
   // called when the next player taps "ready": refresh their knowledge and let them act
@@ -391,8 +391,8 @@ LS.game = (function () {
 
   function checkWin() {
     const blue = teamUnits('blue').length, red = teamUnits('red').length;
-    if (red === 0) { LS.state.over = true; LS.state.winner = 'blue'; log('Red squad eliminated. BLUE wins.'); }
-    else if (blue === 0) { LS.state.over = true; LS.state.winner = 'red'; log('Blue squad eliminated. RED wins.'); }
+    if (red === 0) { LS.state.over = true; LS.state.winner = 'blue'; log(`${teamName('red')} squad eliminated. ${teamName('blue').toUpperCase()} wins.`); }
+    else if (blue === 0) { LS.state.over = true; LS.state.winner = 'red'; log(`${teamName('blue')} squad eliminated. ${teamName('red').toUpperCase()} wins.`); }
   }
 
   function log(msg) {
