@@ -376,7 +376,7 @@ LS.input = (function () {
     LS.config.aiTeams = aiTeams;
     LS.game.newGame();
     LS.game.refreshReach();
-    LS.render.centerOn(LS.config.tile * 3, LS.config.tile * 9.5); // frame the blue squad
+    centerOnTeam('blue'); // frame the attacking squad
     LS.render.draw();
     document.getElementById('start-screen').style.display = 'none';
   }

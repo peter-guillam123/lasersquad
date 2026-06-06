@@ -2,8 +2,8 @@
 window.LS = window.LS || {};
 
 LS.config = {
-  cols: 26,            // map size (can exceed the viewport — the camera scrolls)
-  rows: 18,
+  cols: 44,            // map size (can exceed the viewport — the camera scrolls)
+  rows: 32,
   tile: 44,            // pixel size of one grid square
   view: { cols: 16, rows: 12 }, // visible window onto the map (in tiles)
   aiTeams: ['red'],    // teams played by the computer; empty = hot-seat two-player
@@ -80,6 +80,14 @@ LS.config = {
     consoleBody:'#3a4048',          // machinery console
     consoleEdge:'#262b31',
     consoleScreen:'rgba(90,200,170,0.45)', // dim teal screen glow (kept low so overlays still read)
+    bedFrame:'#4a3f33',  // bed (low cover)
+    bedSheet:'#6a7b8c',
+    bedPillow:'#9aa7b3',
+    treeCanopy:'#2f6b3a', // tree (tall cover, outdoors)
+    treeCanopy2:'#3a7d45',
+    treeTrunk:'#4a3a28',
+    shrubBody:'#356b3e',  // shrub (low cover, outdoors)
+    shrubHi:'#43824d',
     grid:    'rgba(255,255,255,0.045)',
     blue:    '#4aa3ff',
     blueDark:'#1f5fa6',

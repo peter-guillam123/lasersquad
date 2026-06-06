@@ -165,8 +165,9 @@ LS.render = (function () {
       for (let x = 0; x < LS.config.cols; x++) {
         const ch = LS.level.map[y][x];
         const rubbled = LS.los.rubbled(x, y), cratered = LS.los.cratered(x, y);
-        const decor = !rubbled && !cratered && LS.los.isDecor(x, y); // crate/desk/locker/console
-        const floorLike = ch === '_' || ch === 'D' || ch === 'R' || decor; // decor sits on a floor
+        const decor = !rubbled && !cratered && LS.los.isDecor(x, y); // crate/desk/locker/console/bed/tree/shrub
+        const outdoorDecor = decor && LS.los.isOutdoorDecor(x, y);    // trees/shrubs sit on grass
+        const floorLike = ch === '_' || ch === 'D' || ch === 'R' || (decor && !outdoorDecor); // indoor decor sits on a floor
         let fill;
         if (rubbled) fill = (x + y) % 2 ? C.floorB : C.floorA;     // blown open -> floor
         else if (ch === '#') fill = C.wall;
@@ -175,7 +176,7 @@ LS.render = (function () {
         else if (floorLike) fill = (x + y) % 2 ? C.floorB : C.floorA;
         else fill = (x + y) % 2 ? C.groundB : C.groundA;           // '.' ground
         el('rect', { x: x * T, y: y * T, width: T, height: T, fill }, layers.terrain);
-        if ((ch === '_' || decor) && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
+        if ((ch === '_' || (decor && !outdoorDecor)) && !rubbled && !cratered) // subtle floor panel seam (muted, so overlays stay clean)
           el('rect', { x: x * T + 3, y: y * T + 3, width: T - 6, height: T - 6, rx: 3, fill: 'none', stroke: 'rgba(0,0,0,0.16)', 'stroke-width': 1 }, layers.terrain);
 
         if (rubbled) drawRubble(x, y, T, C);
@@ -292,8 +293,11 @@ LS.render = (function () {
   function drawDecor(x, y, T, C, ch) {
     if (ch === 'c') drawCrate(x, y, T, C);
     else if (ch === 't') drawDesk(x, y, T, C);
+    else if (ch === 'b') drawBed(x, y, T, C);
     else if (ch === 'L') drawLocker(x, y, T, C);
     else if (ch === 'M') drawConsole(x, y, T, C);
+    else if (ch === 'T') drawTree(x, y, T, C);
+    else if (ch === 's') drawShrub(x, y, T, C);
   }
 
   function drawCrate(x, y, T, C) {
@@ -330,6 +334,30 @@ LS.render = (function () {
     el('rect', { x: x0 + w * 0.16, y: y0 + h * 0.14, width: w * 0.68, height: h * 0.40, rx: 1, fill: C.consoleScreen }, layers.terrain); // dim glow
     [0.26, 0.40].forEach(fy => el('line', { x1: x0 + w * 0.18, y1: y0 + h * fy, x2: x0 + w * 0.82, y2: y0 + h * fy, stroke: 'rgba(0,0,0,0.22)', 'stroke-width': 1 }, layers.terrain)); // scan lines
     [0.32, 0.5, 0.68].forEach(fx => el('circle', { cx: x0 + w * fx, cy: y0 + h * 0.74, r: T * 0.03, fill: C.lockerHandle }, layers.terrain)); // buttons
+  }
+
+  function drawBed(x, y, T, C) {
+    const cx = x * T, cy = y * T, x0 = cx + T * 0.16, y0 = cy + T * 0.13, w = T * 0.68, h = T * 0.74;
+    el('rect', { x: x0, y: y0, width: w, height: h, rx: 2, fill: C.bedFrame }, layers.terrain);
+    el('rect', { x: x0 + T * 0.04, y: y0 + T * 0.18, width: w - T * 0.08, height: h - T * 0.22, rx: 2, fill: C.bedSheet }, layers.terrain); // sheet
+    el('rect', { x: x0 + T * 0.06, y: y0 + T * 0.04, width: w - T * 0.12, height: T * 0.14, rx: 2, fill: C.bedPillow }, layers.terrain);   // pillow
+  }
+
+  function drawTree(x, y, T, C) {
+    const cx = x * T + T / 2, cy = y * T + T / 2;
+    el('rect', { x: cx - T * 0.06, y: cy + T * 0.16, width: T * 0.12, height: T * 0.28, fill: C.treeTrunk }, layers.terrain); // trunk
+    el('circle', { cx: cx, cy: cy - T * 0.02, r: T * 0.34, fill: C.treeCanopy }, layers.terrain);                              // canopy
+    el('circle', { cx: cx - T * 0.16, cy: cy + T * 0.04, r: T * 0.2, fill: C.treeCanopy2 }, layers.terrain);
+    el('circle', { cx: cx + T * 0.16, cy: cy + T * 0.02, r: T * 0.19, fill: C.treeCanopy2 }, layers.terrain);
+    el('circle', { cx: cx + T * 0.04, cy: cy - T * 0.17, r: T * 0.15, fill: C.treeCanopy2 }, layers.terrain);
+  }
+
+  function drawShrub(x, y, T, C) {
+    const cx = x * T + T / 2, cy = y * T + T * 0.62;
+    el('circle', { cx: cx - T * 0.15, cy: cy, r: T * 0.16, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx + T * 0.15, cy: cy, r: T * 0.16, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx, cy: cy - T * 0.09, r: T * 0.19, fill: C.shrubBody }, layers.terrain);
+    el('circle', { cx: cx - T * 0.04, cy: cy - T * 0.13, r: T * 0.1, fill: C.shrubHi }, layers.terrain);
   }
 
   function drawOverlay(T, C) {

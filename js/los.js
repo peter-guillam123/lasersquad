@@ -22,10 +22,15 @@ LS.los = (function () {
   // (locker, console) block sight & fire — crates and desks you can see and shoot over.
   const DECOR = {
     c: { sight: false, shot: false }, // crate  — low cover
-    t: { sight: false, shot: false }, // desk   — low cover
+    t: { sight: false, shot: false }, // desk/table — low cover
+    b: { sight: false, shot: false }, // bed    — low cover
     L: { sight: true,  shot: true  }, // locker — tall cover
     M: { sight: true,  shot: true  }, // console/machinery — tall cover
+    T: { sight: true,  shot: true  }, // tree   — tall cover (outdoors)
+    s: { sight: false, shot: false }, // shrub  — low cover (outdoors)
   };
+  const OUTDOOR_DECOR = new Set(['T', 's']); // sits on grass, not floor
+  function isOutdoorDecor(x, y) { return OUTDOOR_DECOR.has(tileChar(x, y)); }
   function decorAt(x, y) { return DECOR[tileChar(x, y)] || null; }
   function isDecor(x, y) { return !!DECOR[tileChar(x, y)]; }
 
@@ -112,7 +117,7 @@ LS.los = (function () {
   }
 
   return {
-    tileChar, isWall, isBreakable, isDoor, isReinforcedDoor, isWindow, isBarrier, isDecor, decorAt,
+    tileChar, isWall, isBreakable, isDoor, isReinforcedDoor, isWindow, isBarrier, isDecor, decorAt, isOutdoorDecor,
     doorOpen, windowSmashed, rubbled, cratered, givesCover,
     blocksSight, blocksShot, blocksMove, lineClear, dist, canTarget, canSee, firstShotBlocker,
   };
