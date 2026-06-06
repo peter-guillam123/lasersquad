@@ -406,89 +406,112 @@ LS.render = (function () {
   }
 
   // ---- soldier sprite: a chunky armoured "space marine", a distinct pose per facing ----
-  const SPRITE = { steel: '#23262e', steelLt: '#5a6470', steelHi: '#828c98', visor: '#0c1a2e' };
+  const SPRITE = { d: '#262a32', m: '#525c68', hi: '#9aa4b0', visor: '#0c1726', glow: '#7fe3ff' };
   function teamPal(team) {
+    // the player squad (the 'blue' team id) wears yellow marine armour; the AI 'red' squad stays red.
+    // base/sh/dk/lt/spec = a 5-step ramp of one hue (craft rule 3); dk doubles as the silhouette outline.
     return team === 'blue'
-      ? { base: LS.config.colors.blue, dk: '#245a93', lt: '#bfe0ff', glow: '#7fd0ff' }
-      : { base: LS.config.colors.red, dk: '#9e3535', lt: '#ffc7c7', glow: '#ff9a9a' };
+      ? { base: '#f2c21e', sh: '#cf9512', dk: '#6e4a0c', lt: '#ffe79a', spec: '#fff6d8' }
+      : { base: LS.config.colors.red, sh: '#c54141', dk: '#852a2a', lt: '#ffd2d2', spec: '#fff0f0' };
   }
-  function mShadow(g, T) { el('ellipse', { cx: 0, cy: T * 0.4, rx: T * 0.3, ry: T * 0.09, fill: 'rgba(0,0,0,0.32)' }, g); }
-  function mBoots(g, T, t, spread) {
-    const dx = T * (spread || 0.12);
-    [-dx, dx].forEach(x => el('rect', { x: x - T * 0.075, y: T * 0.26, width: T * 0.15, height: T * 0.16, rx: T * 0.05, fill: SPRITE.steel, stroke: t.dk, 'stroke-width': 1.5 }, g));
+  function mShadow(g, T) { el('ellipse', { cx: 0, cy: T * 0.40, rx: T * 0.30, ry: T * 0.085, fill: 'rgba(0,0,0,0.30)' }, g); }
+  function mBoot(g, T, x) {
+    el('rect', { x: x - T * 0.085, y: T * 0.24, width: T * 0.17, height: T * 0.16, rx: T * 0.045, fill: SPRITE.d }, g);
+    el('rect', { x: x - T * 0.085, y: T * 0.24, width: T * 0.17, height: T * 0.05, rx: T * 0.04, fill: SPRITE.m, opacity: 0.8 }, g);
   }
-  function mGun(g, T, ox, oy, L, rot) {
-    const grp = el('g', { transform: `translate(${ox},${oy}) rotate(${rot || 0})` }, g);
-    el('rect', { x: -L * 0.42, y: -T * 0.04, width: L * 0.22, height: T * 0.12, rx: 2, fill: SPRITE.steelLt }, grp);   // stock
-    el('rect', { x: -L * 0.22, y: -T * 0.06, width: L * 0.4, height: T * 0.14, rx: 2, fill: SPRITE.steel }, grp);      // receiver
-    el('rect', { x: -L * 0.06, y: T * 0.05, width: L * 0.13, height: T * 0.18, rx: 2, fill: SPRITE.steel, transform: `rotate(12 0 ${T * 0.06})` }, grp); // magazine
-    el('rect', { x: 0, y: -T * 0.12, width: L * 0.09, height: T * 0.07, fill: SPRITE.steel }, grp);                    // sight
-    el('rect', { x: L * 0.12, y: -T * 0.028, width: L * 0.5, height: T * 0.06, rx: 1.5, fill: SPRITE.steel }, grp);    // barrel
-    el('rect', { x: L * 0.58, y: -T * 0.045, width: L * 0.1, height: T * 0.09, rx: 1.5, fill: SPRITE.steelHi }, grp);  // muzzle
+  function mRivet(g, T, t, x, y) { el('circle', { cx: x, cy: y, r: T * 0.022, fill: t.dk, opacity: 0.55 }, g); }
+  function mPauldron(g, T, t, x, y, r) {
+    el('ellipse', { cx: x, cy: y, rx: r, ry: r * 0.86, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+    el('path', { d: `M${x - r * 0.78} ${y - r * 0.12} a${r * 0.85} ${r * 0.7} 0 0 1 ${r * 1.56} 0 Z`, fill: t.lt, opacity: 0.55 }, g);  // top highlight (light from top of screen)
+    el('path', { d: `M${x - r * 0.78} ${y + r * 0.22} a${r * 0.85} ${r * 0.7} 0 0 0 ${r * 1.56} 0 Z`, fill: '#000', opacity: 0.15 }, g); // underside AO
+    mRivet(g, T, t, x, y + r * 0.28);
   }
-  function mHelmet(g, t, hx, hy, hr, dx, dy, dome, shine, nose) {
-    if (nose) {
-      const L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, px = -uy, py = ux, nb = hr * 0.38;
-      el('polygon', { points: `${hx + ux * hr * 1.55},${hy + uy * hr * 1.55} ${hx + ux * hr * 0.6 + px * nb},${hy + uy * hr * 0.6 + py * nb} ${hx + ux * hr * 0.6 - px * nb},${hy + uy * hr * 0.6 - py * nb}`, fill: dome, stroke: t.dk, 'stroke-width': 1.5 }, g);
+  // rifle: drawn pointing +x, then rotated to the facing direction so it reads as aiming.
+  // the two hands are drawn ON the gun (in its local space) so they ride with it, never drift.
+  function mGun(g, T, t, ox, oy, L, rot) {
+    const q = el('g', { transform: `translate(${ox},${oy}) rotate(${rot || 0})` }, g);
+    el('rect', { x: -L * 0.40, y: -T * 0.05, width: L * 0.24, height: T * 0.13, rx: 2, fill: SPRITE.m }, q);            // stock
+    el('rect', { x: -L * 0.20, y: -T * 0.075, width: L * 0.42, height: T * 0.16, rx: 3, fill: SPRITE.d }, q);           // body
+    el('rect', { x: -L * 0.20, y: -T * 0.075, width: L * 0.42, height: T * 0.05, rx: 2, fill: SPRITE.m, opacity: 0.75 }, q);
+    el('rect', { x: -L * 0.02, y: T * 0.05, width: L * 0.13, height: T * 0.20, rx: 2, fill: SPRITE.d, transform: `rotate(10 0 ${T * 0.05})` }, q); // magazine
+    el('rect', { x: L * 0.22, y: -T * 0.026, width: L * 0.5, height: T * 0.062, rx: 2, fill: SPRITE.d }, q);            // barrel
+    el('rect', { x: L * 0.64, y: -T * 0.04, width: L * 0.12, height: T * 0.09, rx: 2, fill: SPRITE.hi }, q);            // muzzle
+    el('circle', { cx: -L * 0.06, cy: T * 0.03, r: T * 0.062, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);      // rear hand (trigger)
+    el('circle', { cx: L * 0.16, cy: 0, r: T * 0.062, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);             // front hand (foregrip)
+  }
+  function mHelmet(g, T, t, x, y, r, back) {
+    el('ellipse', { cx: x, cy: y, rx: r, ry: r * 0.95, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+    el('path', { d: `M${x - r * 0.78} ${y - r * 0.2} a${r * 0.9} ${r * 0.85} 0 0 1 ${r * 1.56} 0 Z`, fill: t.lt, opacity: 0.6 }, g); // top highlight (always north)
+    el('ellipse', { cx: x - r * 0.34, cy: y - r * 0.42, rx: r * 0.2, ry: r * 0.15, fill: t.spec, opacity: 0.6 }, g);     // offset shine (breaks symmetry)
+    if (back) { el('circle', { cx: x, cy: y - r * 0.02, r: r * 0.32, fill: SPRITE.d }, g); el('circle', { cx: x - r * 0.1, cy: y - r * 0.12, r: r * 0.1, fill: SPRITE.m, opacity: 0.7 }, g); } // rear valve
+  }
+  // visor = a horizontal glowing eye-band on the FRONT of the helmet. It slides toward the
+  // facing side and foreshortens for profile, but never rotates; the back shows no visor.
+  function mVisorFront(g, T, t, x, y, r) {
+    el('ellipse', { cx: x, cy: y + r * 0.16, rx: r * 0.66, ry: r * 0.38, fill: SPRITE.visor }, g);
+    el('rect', { x: x - r * 0.4, y: y + r * 0.04, width: r * 0.8, height: r * 0.2, rx: r * 0.1, fill: SPRITE.glow, opacity: 0.9 }, g);
+  }
+  function mVisor3q(g, T, t, x, y, r, s) { // s = +1 front-right (SE)
+    el('ellipse', { cx: x + s * r * 0.22, cy: y + r * 0.14, rx: r * 0.52, ry: r * 0.36, fill: SPRITE.visor }, g);
+    el('rect', { x: x + s * r * 0.18 - r * 0.28, y: y + r * 0.04, width: r * 0.56, height: r * 0.18, rx: r * 0.09, fill: SPRITE.glow, opacity: 0.9 }, g);
+  }
+  function mVisorSide(g, T, t, x, y, r) { // facing right: same band, slid to the front (right) edge
+    el('ellipse', { cx: x + r * 0.30, cy: y + r * 0.12, rx: r * 0.5, ry: r * 0.34, fill: SPRITE.visor }, g);
+    el('rect', { x: x + r * 0.04, y: y + r * 0.02, width: r * 0.54, height: r * 0.18, rx: r * 0.09, fill: SPRITE.glow, opacity: 0.9 }, g);
+  }
+  function mChest(g, T, t, w, h, cy, back) {
+    el('rect', { x: -w / 2, y: cy - h / 2, width: w, height: h, rx: T * 0.07, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
+    el('rect', { x: -w / 2, y: cy + h * 0.04, width: w, height: h * 0.46, rx: T * 0.06, fill: '#000', opacity: 0.15 }, g);          // lower AO
+    el('rect', { x: -w * 0.36, y: cy - h * 0.42, width: w * 0.72, height: h * 0.2, rx: T * 0.04, fill: t.lt, opacity: 0.45 }, g);   // top highlight
+    if (!back) {
+      el('line', { x1: 0, y1: cy - h * 0.28, x2: 0, y2: cy + h * 0.3, stroke: t.dk, 'stroke-width': 1.4, opacity: 0.5 }, g);        // centre seam (front only)
+      mRivet(g, T, t, -w * 0.31, cy - h * 0.18); mRivet(g, T, t, w * 0.32, cy - h * 0.16); mRivet(g, T, t, -w * 0.29, cy + h * 0.24);
     }
-    el('ellipse', { cx: hx, cy: hy, rx: hr, ry: hr * 0.92, fill: dome, stroke: t.dk, 'stroke-width': 2 }, g);
-    if (shine) el('circle', { cx: hx - hr * 0.34, cy: hy - hr * 0.42, r: hr * 0.2, fill: 'rgba(255,255,255,0.45)' }, g);
+  }
+  function mBackpack(g, T) {
+    el('rect', { x: -T * 0.15, y: -T * 0.13, width: T * 0.30, height: T * 0.28, rx: T * 0.05, fill: SPRITE.d }, g);
+    el('rect', { x: -T * 0.15, y: -T * 0.13, width: T * 0.30, height: T * 0.08, rx: T * 0.05, fill: SPRITE.m, opacity: 0.55 }, g);
+    el('rect', { x: -T * 0.10, y: -T * 0.005, width: T * 0.20, height: T * 0.08, rx: 2, fill: SPRITE.glow, opacity: 0.55 }, g);
   }
   const MARINE_POSES = {
     front(g, T, t) {
-      mShadow(g, T); mBoots(g, T, t);
-      el('rect', { x: -T * 0.16, y: T * 0.04, width: T * 0.32, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
-      el('rect', { x: -T * 0.2, y: -T * 0.16, width: T * 0.4, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
-      el('rect', { x: -T * 0.1, y: -T * 0.1, width: T * 0.2, height: T * 0.18, rx: T * 0.04, fill: t.lt, opacity: 0.5 }, g);
-      [-1, 1].forEach(s => el('ellipse', { cx: s * T * 0.24, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g));
-      mGun(g, T, -T * 0.04, T * 0.07, T * 0.46, -7);
-      mHelmet(g, t, 0, -T * 0.29, T * 0.2, 0, 1, t.base, true, true);
-      el('rect', { x: -T * 0.15, y: -T * 0.27, width: T * 0.3, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor }, g);
-      el('rect', { x: -T * 0.09, y: -T * 0.24, width: T * 0.12, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
-    },
-    side(g, T, t) {
-      mShadow(g, T); mBoots(g, T, t, 0.1);
-      el('rect', { x: -T * 0.14, y: T * 0.04, width: T * 0.26, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
-      el('ellipse', { cx: -T * 0.22, cy: -T * 0.08, rx: T * 0.12, ry: T * 0.16, fill: t.dk }, g);
-      el('rect', { x: -T * 0.16, y: -T * 0.16, width: T * 0.32, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
-      el('ellipse', { cx: T * 0.02, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);
-      mGun(g, T, T * 0.04, 0, T * 0.5, 0);
-      mHelmet(g, t, T * 0.04, -T * 0.29, T * 0.2, 1, 0, t.base, true, true);
-      el('rect', { x: T * 0.1, y: -T * 0.33, width: T * 0.2, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor }, g);
-      el('rect', { x: T * 0.18, y: -T * 0.3, width: T * 0.08, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
-    },
-    back(g, T, t) {
-      mShadow(g, T); mBoots(g, T, t);
-      el('rect', { x: -T * 0.16, y: T * 0.04, width: T * 0.32, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
-      el('rect', { x: -T * 0.2, y: -T * 0.16, width: T * 0.4, height: T * 0.3, rx: T * 0.1, fill: t.dk, stroke: t.dk, 'stroke-width': 2 }, g);
-      el('rect', { x: -T * 0.13, y: -T * 0.12, width: T * 0.26, height: T * 0.24, rx: T * 0.06, fill: SPRITE.steel }, g);
-      el('rect', { x: -T * 0.08, y: -T * 0.08, width: T * 0.16, height: T * 0.07, rx: 2, fill: t.glow, opacity: 0.5 }, g);
-      [-1, 1].forEach(s => el('ellipse', { cx: s * T * 0.24, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g));
-      mHelmet(g, t, 0, -T * 0.29, T * 0.2, 0, -1, t.dk, false, false);
-      el('circle', { cx: 0, cy: -T * 0.3, r: T * 0.07, fill: SPRITE.steel }, g);
+      mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.13);
+      mChest(g, T, t, T * 0.42, T * 0.34, T * 0.03);
+      mPauldron(g, T, t, -T * 0.25, -T * 0.12, T * 0.135); mPauldron(g, T, t, T * 0.25, -T * 0.11, T * 0.125);
+      mGun(g, T, t, -T * 0.04, T * 0.10, T * 0.50, 38);
+      mHelmet(g, T, t, 0, -T * 0.28, T * 0.195, false); mVisorFront(g, T, t, 0, -T * 0.28, T * 0.195);
     },
     threeqFront(g, T, t) {
-      mShadow(g, T); mBoots(g, T, t, 0.11);
-      el('rect', { x: -T * 0.15, y: T * 0.04, width: T * 0.3, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
-      el('ellipse', { cx: -T * 0.2, cy: -T * 0.1, rx: T * 0.11, ry: T * 0.14, fill: t.dk }, g);
-      el('rect', { x: -T * 0.18, y: -T * 0.16, width: T * 0.36, height: T * 0.3, rx: T * 0.1, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
-      el('rect', { x: -T * 0.06, y: -T * 0.1, width: T * 0.18, height: T * 0.16, rx: T * 0.04, fill: t.lt, opacity: 0.45 }, g);
-      el('ellipse', { cx: T * 0.18, cy: -T * 0.13, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);
-      mGun(g, T, -T * 0.02, T * 0.06, T * 0.48, 26);
-      mHelmet(g, t, T * 0.05, -T * 0.29, T * 0.2, 0.7, 0.7, t.base, true, true);
-      el('rect', { x: -T * 0.02, y: -T * 0.31, width: T * 0.26, height: T * 0.12, rx: T * 0.05, fill: SPRITE.visor, transform: `rotate(20 ${T * 0.05} ${-T * 0.25})` }, g);
-      el('rect', { x: T * 0.07, y: -T * 0.27, width: T * 0.09, height: T * 0.045, rx: 2, fill: t.glow, opacity: 0.85 }, g);
+      mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.11);
+      mPauldron(g, T, t, -T * 0.21, -T * 0.12, T * 0.115);   // far shoulder
+      mChest(g, T, t, T * 0.38, T * 0.34, T * 0.03);
+      mGun(g, T, t, 0, T * 0.08, T * 0.50, 45);              // aims down-right
+      mPauldron(g, T, t, T * 0.23, -T * 0.11, T * 0.14);     // near shoulder
+      mHelmet(g, T, t, T * 0.04, -T * 0.28, T * 0.195, false); mVisor3q(g, T, t, T * 0.04, -T * 0.28, T * 0.195, 1);
+    },
+    side(g, T, t) {
+      mShadow(g, T); mBoot(g, T, -T * 0.02); mBoot(g, T, T * 0.06);
+      mPauldron(g, T, t, -T * 0.13, -T * 0.11, T * 0.10);    // far
+      mChest(g, T, t, T * 0.30, T * 0.34, T * 0.02);
+      mGun(g, T, t, T * 0.06, -T * 0.005, T * 0.56, 0);      // points forward (right)
+      mPauldron(g, T, t, T * 0.07, -T * 0.11, T * 0.14);     // near
+      mHelmet(g, T, t, T * 0.05, -T * 0.28, T * 0.195, false); mVisorSide(g, T, t, T * 0.05, -T * 0.28, T * 0.195);
     },
     backThreeq(g, T, t) {
-      mShadow(g, T); mBoots(g, T, t, 0.11);
-      el('rect', { x: -T * 0.15, y: T * 0.04, width: T * 0.3, height: T * 0.26, rx: T * 0.06, fill: t.dk }, g);
-      el('rect', { x: -T * 0.18, y: -T * 0.16, width: T * 0.36, height: T * 0.3, rx: T * 0.1, fill: t.dk, stroke: t.dk, 'stroke-width': 2 }, g);
-      el('rect', { x: -T * 0.14, y: -T * 0.12, width: T * 0.22, height: T * 0.22, rx: T * 0.05, fill: SPRITE.steel }, g); // backpack (far side)
-      el('ellipse', { cx: T * 0.2, cy: -T * 0.12, rx: T * 0.12, ry: T * 0.13, fill: t.dk }, g);   // near pauldron
-      el('ellipse', { cx: -T * 0.22, cy: -T * 0.13, rx: T * 0.1, ry: T * 0.12, fill: t.dk }, g);  // far pauldron
-      el('rect', { x: T * 0.04, y: -T * 0.04, width: T * 0.34, height: T * 0.08, rx: 1.5, fill: SPRITE.steel, transform: `rotate(-22 ${T * 0.1} 0)` }, g); // gun tip
-      mHelmet(g, t, T * 0.05, -T * 0.29, T * 0.2, 0, -1, t.dk, false, false);
-      el('circle', { cx: T * 0.02, cy: -T * 0.3, r: T * 0.06, fill: SPRITE.steel }, g);
+      mShadow(g, T); mBoot(g, T, -T * 0.10); mBoot(g, T, T * 0.13);
+      mPauldron(g, T, t, -T * 0.21, -T * 0.12, T * 0.115);
+      mChest(g, T, t, T * 0.38, T * 0.34, T * 0.03, true); mBackpack(g, T);
+      el('rect', { x: T * 0.1, y: -T * 0.06, width: T * 0.34, height: T * 0.055, rx: 2, fill: SPRITE.d, transform: `rotate(-38 ${T * 0.1} ${-T * 0.04})` }, g);   // barrel over shoulder
+      el('rect', { x: T * 0.4, y: -T * 0.075, width: T * 0.07, height: T * 0.05, rx: 2, fill: SPRITE.hi, transform: `rotate(-38 ${T * 0.1} ${-T * 0.04})` }, g);  // muzzle tip
+      mPauldron(g, T, t, T * 0.23, -T * 0.11, T * 0.14);
+      mHelmet(g, T, t, T * 0.04, -T * 0.28, T * 0.195, true);
+    },
+    back(g, T, t) {
+      mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.13);
+      mPauldron(g, T, t, -T * 0.25, -T * 0.12, T * 0.13); mPauldron(g, T, t, T * 0.25, -T * 0.12, T * 0.13);
+      mChest(g, T, t, T * 0.42, T * 0.34, T * 0.03, true); mBackpack(g, T);
+      el('rect', { x: -T * 0.03, y: -T * 0.34, width: T * 0.05, height: T * 0.12, rx: 2, fill: SPRITE.d }, g);   // antenna
+      mHelmet(g, T, t, 0, -T * 0.28, T * 0.195, true);
     },
   };
   // facing index (0=N clockwise) -> [pose, mirror-horizontally]
