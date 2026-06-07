@@ -239,6 +239,7 @@ LS.input = (function () {
         const contacts = [...now].filter(id => !seen.has(id)).map(id => LS.game.unitById(id));
         seen = now;
         const reactors = LS.game.findReactors(unit);
+        LS.render.flushAlertCallout(); // if this step walked you into a guard's view, sound the klaxon now
         // after any reaction fire, halt on a fresh contact; otherwise keep walking
         const proceed = () => {
           if (!unit.alive) return endMove();

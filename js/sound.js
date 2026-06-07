@@ -63,10 +63,30 @@ LS.sound = (function () {
     else if (kind === 'type') { // a quick typewriter clatter for an incoming log line
       for (let i = 0; i < 3; i++) tone({ freq: 1500 + (i % 2 ? 260 : 0), type: 'square', dur: 0.018, vol: 0.022, delay: i * 0.04 });
     }
+    else if (kind === 'radio') { // a squelch of static + two beeps: a comms channel opening
+      noise({ dur: 0.13, vol: 0.05 });
+      tone({ freq: 920, type: 'square', dur: 0.045, vol: 0.035, delay: 0.02 });
+      tone({ freq: 660, type: 'square', dur: 0.05, vol: 0.03, delay: 0.10 });
+    }
+  }
+
+  // a spoken radio line via the browser's built-in speech synthesiser (no files, no network).
+  // pitched down for a comms feel; respects the global mute. The actual voice is whatever the
+  // machine has installed, so it varies a little computer-to-computer.
+  function speak(text) {
+    if (muted) return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    try {
+      synth.cancel(); // never let lines queue up on top of each other
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95; u.pitch = 0.55; u.volume = 0.95;
+      synth.speak(u);
+    } catch (e) { /* speech not available — the banner still carries the message */ }
   }
 
   function toggle() { muted = !muted; if (!muted) ensure(); return muted; }
   function isMuted() { return muted; }
 
-  return { ensure, play, toggle, isMuted };
+  return { ensure, play, speak, toggle, isMuted };
 })();

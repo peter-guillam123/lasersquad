@@ -119,7 +119,29 @@ LS.render = (function () {
 
   let vision = new Set(), danger = new Set();   // active team's current sight + known danger (set in draw)
 
+  // the "intruder spotted" call-out: banner + radio static + a spoken line, fired once on the
+  // calm->alert edge (staged in game.js, drained here so it lands the instant you're rumbled)
+  const NUM_WORD = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+  let alertBannerTimer = null;
+  function flushAlertCallout() {
+    const a = LS.state.alert && LS.state.alert.red;
+    if (!a || !a.pendingCallout) return;
+    const sec = a.pendingCallout.sector;
+    a.pendingCallout = null;
+    const banner = document.getElementById('alert-banner');
+    if (banner) {
+      banner.textContent = `⚠ INTRUDER SPOTTED · SECTOR ${sec} · ALERT STATUS`;
+      banner.classList.add('show');
+      clearTimeout(alertBannerTimer);
+      alertBannerTimer = setTimeout(() => banner.classList.remove('show'), 3600);
+    }
+    LS.sound.play('radio');
+    LS.sound.speak(`Intruder spotted. Sector ${NUM_WORD[sec] || sec}. Alert status.`);
+    LS.game.log(`⚠ Red squad alerted — intruder in sector ${sec}.`);
+  }
+
   function draw() {
+    flushAlertCallout(); // a guard may have just clocked you — sound the klaxon before we repaint
     const T = LS.config.tile, C = LS.config.colors;
     const vt = LS.game.viewTeam();
     vision = LS.game.teamVision(vt);
@@ -1012,5 +1034,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, focusTile, reveal, unreveal, setWatchAll, isWatching, setAiLabel, clearAiLabel, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, focusTile, reveal, unreveal, setWatchAll, isWatching, setAiLabel, clearAiLabel, flushAlertCallout, unitEls };
 })();
