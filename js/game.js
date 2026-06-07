@@ -10,6 +10,7 @@ LS.game = (function () {
       ap: LS.config.ap.max,
       alive: true,
       grenades: LS.config.grenade.count,
+      post: { x: u.x, y: u.y }, // home tile the AI's calm patrol routine drifts around
     }));
     LS.state = {
       units,

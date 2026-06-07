@@ -142,8 +142,58 @@ LS.ai = (function () {
     if (step && (step.x !== u.x || step.y !== u.y)) return { type: 'move', dest: step, reason: 'hunt' };
     return { type: 'end' };
   }
-  // CALM: the guard routine. Filled in by the patrol pass; for now a guard simply holds station.
-  function patrolDecision(u) { return { type: 'end' }; }
+  // CALM: the guard routine. Most guards hold station — scanning their arc and shuffling a tile
+  // or two around their post; one or two designated patrollers walk a beat between two points.
+  // One action per guard per turn (no pacing the whole AP away), so the calm turn feels alive
+  // without descending into a fidget. A patroller that strays into your sight trips the alert.
+  function scanDir(u) { return (u.facing + (LS.util.randInt(0, 1) ? 1 : 7)) % 8; } // glance one notch L/R
+  function shuffleStep(u, post) { // a legal one-step move that keeps us within two tiles of home
+    const reach = LS.game.computeReachable(u), cols = cfg().cols, opts = [];
+    reach.cost.forEach((ap, k) => {
+      if (ap > cfg().ap.moveDiag) return; // a single step only
+      const x = k % cols, y = Math.floor(k / cols);
+      if (x === u.x && y === u.y) return;
+      if (Math.max(Math.abs(x - post.x), Math.abs(y - post.y)) > 2) return;
+      opts.push({ x, y });
+    });
+    return opts.length ? opts[LS.util.randInt(0, opts.length - 1)] : null;
+  }
+  function computeBeat(post) { // the longest clear cardinal run from the post (up to 5 tiles)
+    let best = null;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      let len = 0;
+      for (let s = 1; s <= 5; s++) {
+        const x = post.x + dx * s, y = post.y + dy * s;
+        if (x < 0 || y < 0 || x >= cfg().cols || y >= cfg().rows || LS.los.blocksMove(x, y)) break;
+        len = s;
+      }
+      if (len >= 2 && (!best || len > best.len)) best = { dx, dy, len, out: true };
+    }
+    return best;
+  }
+  function beatStep(u, post) { // walk a few tiles toward the current end of the beat; reverse at the ends
+    if (u.beat === undefined) u.beat = computeBeat(post) || null;
+    if (!u.beat) return null;
+    const b = u.beat;
+    const target = b.out ? { x: post.x + b.dx * b.len, y: post.y + b.dy * b.len } : { x: post.x, y: post.y };
+    if (LS.los.dist(u.x, u.y, target.x, target.y) <= 1) { b.out = !b.out; return null; } // arrived — pause and scan
+    const reach = LS.game.computeReachable(u), path = LS.game.pathTo(reach, target.x, target.y);
+    if (path && path.length >= 2) return path[Math.min(3, path.length - 1)];
+    return stepToward(u, target);
+  }
+  function patrolDecision(u) {
+    if (u._pacedTurn === LS.state.turnCount) return { type: 'end' }; // already had a patrol action this turn
+    u._pacedTurn = LS.state.turnCount;
+    const post = u.post || { x: u.x, y: u.y };
+    if (u.patrol) {
+      const dest = beatStep(u, post);
+      if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'patrol' };
+    } else if (LS.util.randInt(1, 100) <= 35) { // a stationary guard occasionally shifts his weight
+      const dest = shuffleStep(u, post);
+      if (dest) return { type: 'move', dest, reason: 'patrol' };
+    }
+    return { type: 'face', dir: scanDir(u) }; // otherwise just look around (costs no AP, ends the go)
+  }
 
   // one action: big grenade > break contact when hurt > shoot > grenade a target we can't shoot >
   // clear glass > reposition > open a door > hold
@@ -311,6 +361,12 @@ LS.ai = (function () {
     step();
   }
 
+  function aiFace(unit, dir, done) { // a scan: turn on the spot, no AP — so the unit's go ends after it
+    if (typeof dir === 'number' && dir >= 0) unit.facing = dir;
+    LS.render.draw();
+    delay(120, done);
+  }
+
   function actUnit(u, done) {
     if (!u.alive || LS.state.over) return done();
     const apBefore = u.ap;
@@ -324,6 +380,7 @@ LS.ai = (function () {
       if (action.type === 'throw') return aiThrow(u, action.at, cont);
       if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
       if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);
+      if (action.type === 'face') return aiFace(u, action.dir, cont);
       if (action.type === 'move') {
         const reach = LS.game.computeReachable(u);
         const path = LS.game.pathTo(reach, action.dest.x, action.dest.y);
