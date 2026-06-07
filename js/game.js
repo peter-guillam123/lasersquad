@@ -31,6 +31,9 @@ LS.game = (function () {
       craters: new Set(),         // tiles cratered by a blast (impassable holes)
       wallHp: new Map(),          // hidden durability per breakable wall: key -> {hp, max}
       cam: { x: 0, y: 0 },        // camera top-left in world pixels (the scroll position)
+      // red squad awareness: 'calm' = on patrol; 'alert' = has spotted the player and hunts.
+      // latched = can never stand down (a shot was fired, or two+ guards have sighted you).
+      alert: { red: { level: 'calm', latched: false, seers: {}, contactSince: false, quiet: 0, focus: null, pendingCallout: null } },
     };
     // give every breakable wall a hidden, randomised durability
     for (let y = 0; y < LS.config.rows; y++)
@@ -158,6 +161,67 @@ LS.game = (function () {
         }
       });
     });
+    senseAlert(null); // a vision change may mean a guard has just sighted the player
+  }
+
+  // --- red squad awareness: calm patrol vs alert ----------------------------
+  // Red holds a guard routine until one of its soldiers sights one of yours (or a shot
+  // is fired). It then goes 'alert' — and acts on last-known positions instead of only
+  // what it can see this instant. The alert LATCHES (never stands down) once a shot has
+  // been fired or a SECOND guard has independently sighted you; a single silent glimpse
+  // can fade back to calm after a couple of quiet turns. Comms are assumed: alert is squad-wide.
+  const ALERT_COOLDOWN = 2;        // red turns of no contact before a non-latched alert relaxes
+  function alertInfo(team) { return LS.state.alert[team]; }
+  function alertLevel(team) { return (LS.state.alert[team] || {}).level || 'calm'; }
+  // the map carved into six named sectors (W/C/E × N/S), for the "sector 2" callout
+  function sector(x, y) {
+    const col = x < 15 ? 0 : x < 30 ? 1 : 2;
+    const row = y < 16 ? 0 : 1;
+    return row * 3 + col + 1; // 1..6
+  }
+  // red guards that can right now see one of the player's soldiers (and who they see)
+  function redSeers() {
+    const out = [];
+    LS.state.units.forEach(g => {
+      if (!g.alive || g.team !== 'red') return;
+      const t = LS.state.units.find(e => e.alive && e.team === 'blue' && LS.los.canSee(g, e.x, e.y));
+      if (t) out.push({ guard: g, target: t });
+    });
+    return out;
+  }
+  function nearestKnownBlue(from) {
+    const know = LS.state.knowledge.red, ids = Object.keys(know);
+    if (!ids.length) return null;
+    let best = null, bestScore = Infinity;
+    ids.forEach(id => {
+      const k = know[id];
+      const score = from ? LS.los.dist(from.x, from.y, k.x, k.y) : (LS.state.turnCount - k.turn);
+      if (score < bestScore) { bestScore = score; best = k; }
+    });
+    return best;
+  }
+  // called when vision changes (from observe) or a shot is fired (shotAt = the noise's origin).
+  // raises the alert and, on the calm→alert edge, stages a callout for the UI to play.
+  function senseAlert(shotAt) {
+    const a = LS.state.alert.red;
+    const seers = redSeers();
+    if (!seers.length && !shotAt) return;
+    const wasCalm = a.level === 'calm';
+    seers.forEach(s => { a.seers[s.guard.id] = true; }); // remember distinct guards who've sighted you
+    const contact = (seers[0] && seers[0].target) || shotAt || nearestKnownBlue(null);
+    if (contact) a.focus = { x: contact.x, y: contact.y };
+    a.level = 'alert';
+    a.contactSince = true;
+    if (shotAt || Object.keys(a.seers).length >= 2) a.latched = true;
+    if (wasCalm) a.pendingCallout = { sector: a.focus ? sector(a.focus.x, a.focus.y) : 1 };
+  }
+  // at the start of each red turn: a non-latched alert relaxes after enough quiet turns
+  function coolDownTick() {
+    const a = LS.state.alert.red;
+    if (a.level !== 'alert' || a.latched) { a.contactSince = false; return; }
+    if (a.contactSince) a.quiet = 0;
+    else if (++a.quiet >= ALERT_COOLDOWN) { a.level = 'calm'; a.seers = {}; a.quiet = 0; a.focus = null; }
+    a.contactSince = false;
   }
 
   // tiles that enemies the team can currently SEE are able to watch — the fair danger warning
@@ -244,7 +308,9 @@ LS.game = (function () {
     unit.ap -= LS.level.weapon.fireCost;
     faceToward(unit, x, y);
     LS.state.windowsSmashed.add(key(x, y));
-    observe(); refreshReach();
+    observe();
+    senseAlert({ x: unit.x, y: unit.y }); // a gunshot, even at glass
+    refreshReach();
     log(`${unit.name} shatters the window with a shot.`);
     return { ok: true };
   }
@@ -291,6 +357,7 @@ LS.game = (function () {
       log(`${tag}${shooter.name} fires at ${target.name} and misses (${Math.round(chance * 100)}%)`);
     }
     observe();
+    senseAlert({ x: shooter.x, y: shooter.y }); // gunfire carries — the red squad hears it
     refreshReach();
     checkWin();
     return res;
@@ -367,6 +434,7 @@ LS.game = (function () {
     if (wallsDown) parts.push(wallsDown > 1 ? `${wallsDown} walls blown open` : 'a wall blown open');
     else if (wallsHit) parts.push('a wall holds');
     log(parts.length ? `Grenade: ${parts.join('; ')}` : 'Grenade detonates.');
+    senseAlert({ x: g.x, y: g.y }); // an explosion is about as loud as the level gets
     return hits;
   }
 
@@ -375,6 +443,7 @@ LS.game = (function () {
     LS.state.throwMode = null;
     LS.state.activeTeam = LS.state.activeTeam === 'blue' ? 'red' : 'blue';
     LS.state.turnCount++;
+    if (LS.state.activeTeam === 'red') coolDownTick(); // a quiet alert may relax before red acts
     teamUnits(LS.state.activeTeam).forEach(u => { u.ap = LS.config.ap.max; });
     LS.state.selectedId = null;
     LS.state.reach = null;
@@ -405,6 +474,7 @@ LS.game = (function () {
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
     teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet, isAI, viewTeam,
+    alertLevel, alertInfo, sector,
     toggleDoor, smashWindowMelee, shootWindow,
     canThrowTo, throwGrenade, blastTiles, detonateGrenade, breakWindow,
     endTurn, resumeTurn, checkWin, log,

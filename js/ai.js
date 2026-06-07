@@ -109,6 +109,42 @@ LS.ai = (function () {
     return best;
   }
 
+  // ALERT, nothing in sight: converge on where we last knew the player to be (their fading
+  // "?" ghost) — or, if a shot rang out with no sighting, on the noise. This is the fix for
+  // "they forget": last-seen memory already exists, the brain just wasn't using it.
+  function huntGoal(u) {
+    const know = LS.state.knowledge.red, ids = Object.keys(know);
+    let best = null, bestD = Infinity;
+    ids.forEach(id => { const k = know[id]; const d = LS.los.dist(u.x, u.y, k.x, k.y); if (d < bestD) { bestD = d; best = k; } });
+    return best || LS.game.alertInfo('red').focus || null;
+  }
+  // the reachable tile that gets us closest to a goal we can't currently see (pure pursuit)
+  function stepToward(u, goal) {
+    const reach = LS.game.computeReachable(u), cols = cfg().cols;
+    let best = null, bestD = Infinity;
+    reach.cost.forEach((ap, k) => {
+      const x = k % cols, y = Math.floor(k / cols);
+      if (x === u.x && y === u.y) return;
+      const d = LS.los.dist(x, y, goal.x, goal.y);
+      if (d < bestD) { bestD = d; best = { x, y }; }
+    });
+    return best;
+  }
+  function huntDecision(u) {
+    if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
+    const goal = huntGoal(u);
+    if (!goal) return { type: 'end' };
+    const dest = engageTile(u, goal); // a firing spot toward the goal beats merely closer ground
+    if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'hunt' };
+    const door = doorToward(u, goal); // boxed in: open a door that leads toward them
+    if (door && u.ap >= cfg().ap.door) return { type: 'openDoor', at: door };
+    const step = stepToward(u, goal);
+    if (step && (step.x !== u.x || step.y !== u.y)) return { type: 'move', dest: step, reason: 'hunt' };
+    return { type: 'end' };
+  }
+  // CALM: the guard routine. Filled in by the patrol pass; for now a guard simply holds station.
+  function patrolDecision(u) { return { type: 'end' }; }
+
   // one action: big grenade > break contact when hurt > shoot > grenade a target we can't shoot >
   // clear glass > reposition > open a door > hold
   function decide(u) {
@@ -126,7 +162,9 @@ LS.ai = (function () {
     if (t) return u.ap >= W().fireCost ? { type: 'fire', target: t } : { type: 'end' };
     if (nade && nade.blue >= 1) return { type: 'throw', at: nade }; // can't shoot them — flush them out with a grenade
     const seen = enemiesSeen(u);
-    if (!seen.length) return { type: 'end' };
+    if (!seen.length) { // nothing in sight: hunt the last-known position if alerted, else patrol
+      return LS.game.alertLevel(u.team) === 'alert' ? huntDecision(u) : patrolDecision(u);
+    }
     const goal = nearest(u, seen);
     const glass = glassBlocking(u, goal);
     if (glass && u.ap >= W().fireCost) return { type: 'shootWindow', at: glass };
@@ -141,17 +179,21 @@ LS.ai = (function () {
 
   // a short human-readable caption for the debug "watch AI" mode
   function describe(u, action) {
+    const alert = LS.game.alertLevel(u.team) === 'alert';
     switch (action.type) {
       case 'fire':        return { text: `firing at ${action.target.name}`, color: '#ff5d5d' };
       case 'throw':       return { text: 'grenade out', color: '#ff9a3c' };
       case 'shootWindow': return { text: 'clearing a window', color: '#5fbcc6' };
       case 'openDoor':    return { text: 'opening a door', color: '#c8a23c' };
-      case 'move':        return action.reason === 'retreat'
-                            ? { text: 'falling back', color: '#5fbcc6' }
-                            : { text: 'advancing', color: '#e6ad33' };
-      default:            return enemiesSeen(u).length
-                            ? { text: 'holding', color: '#9a946f' }
-                            : { text: 'no target — holds', color: '#9a946f' };
+      case 'face':        return { text: 'scanning', color: '#9a946f' };
+      case 'move':
+        if (action.reason === 'retreat') return { text: 'falling back', color: '#5fbcc6' };
+        if (action.reason === 'hunt')    return { text: 'closing on last sighting', color: '#e6ad33' };
+        if (action.reason === 'patrol')  return { text: 'on patrol', color: '#9a946f' };
+        return { text: 'advancing', color: '#e6ad33' };
+      default: // 'end' / hold
+        if (alert) return { text: 'lost contact — searching', color: '#e6ad33' };
+        return enemiesSeen(u).length ? { text: 'holding', color: '#9a946f' } : { text: 'on guard', color: '#9a946f' };
     }
   }
 
