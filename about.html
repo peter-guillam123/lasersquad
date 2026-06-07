@@ -42,6 +42,26 @@
     <h2>Development diary</h2>
 
     <div class="entry">
+      <div class="date">7 JUNE 2026</div>
+      <h3>Watching the enemy think</h3>
+      <p>The enemy turn is meant to play out behind the fog — a red soldier moving through the dark resolves
+        off-camera, and only crosses into view when it steps into your sight or fires at you. Faithful, but it
+        left a question I couldn't answer: are they actually doing anything? I never heard the footsteps I'd added
+        for their hidden moves, and I started to suspect they weren't moving at all.</p>
+      <p>So I built a debug toggle — "Watch AI" in the top bar — that lifts the fog for the whole enemy turn. With
+        it on you see every red soldier, the camera visits each one as it takes its go, their moves and shots
+        animate in the open, and a little caption floats over each saying what it just decided: <em>advancing</em>,
+        <em>firing at Cole</em>, <em>grenade out</em>, <em>falling back</em>, or <em>holding — no target</em>. It
+        only changes what you're allowed to see, never how the opponent thinks — it still plays fog-fairly on its
+        own vision — so you're watching the real thing, not a tame version put on for the demo.</p>
+      <p>And the answer it gave me was illuminating, if a little deflating: they work, but they're passive. Every
+        red soldier holds its ground until it can actually see one of my squad. They never advance on an enemy they
+        haven't spotted yet — so for the opening rounds, while my squad is still creeping up the west side, the
+        whole enemy turn is six guards looking around and deciding to do nothing. That's the next thing to fix,
+        and I've a plan for it: give them a guard-duty routine that breaks the moment they're rumbled.</p>
+    </div>
+
+    <div class="entry">
       <div class="date">6 JUNE 2026</div>
       <h3>Tidying the terminal</h3>
       <p>A few small things after the overhaul settled in. The squad renders yellow but the team's id is still
