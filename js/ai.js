@@ -182,10 +182,35 @@ LS.ai = (function () {
     const dest = stepToward(u, goal); // open route — just close the distance
     return dest ? { type: 'move', dest, reason } : { type: 'end' };
   }
+  // ALERT pursuit with a search-and-return: head for the lead; on reaching a cold trail, guard that
+  // spot for a turn, then walk home to your post — so a search reads as sweep-then-return, not a
+  // guard frozen on an empty tile. A fresh lead anywhere cancels it and pursuit resumes.
   function huntDecision(u) {
-    if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
+    const post = u.post || { x: u.x, y: u.y };
     const goal = huntGoal(u);
-    return goal ? navStep(u, goal) : { type: 'end' };
+    if (!goal) { u.searchPhase = null; return guardIdle(u, post); } // no lead at all — just hold station
+    const near = (s) => s && Math.abs(s.x - goal.x) + Math.abs(s.y - goal.y) <= 2;
+
+    if (u.searchPhase && !near(u.searchSpot)) u.searchPhase = null;       // a new lead — drop the old search
+    if (!u.searchPhase && near(u.searchedSpot)) return guardIdle(u, post); // already swept this — hold at post
+
+    if (u.searchPhase === 'guard') {
+      if (u.searchTurn === LS.state.turnCount) return guardIdle(u, u.searchSpot, 'search'); // guard the area this turn
+      u.searchPhase = 'return';                                          // a turn has passed — head home
+    }
+    if (u.searchPhase === 'return') {
+      if (LS.los.dist(u.x, u.y, post.x, post.y) <= 1) { u.searchPhase = null; return guardIdle(u, post); }
+      return u.ap >= cfg().ap.moveOrtho ? navStep(u, post, 'return') : { type: 'end' };
+    }
+    // pursuing the lead
+    if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
+    const act = LS.los.dist(u.x, u.y, goal.x, goal.y) <= 1 ? { type: 'end' } : navStep(u, goal, 'hunt');
+    if (act.type === 'end') { // reached the spot (or blocked) — begin guarding it, remember we swept it
+      u.searchPhase = 'guard'; u.searchSpot = { x: u.x, y: u.y };
+      u.searchedSpot = { x: goal.x, y: goal.y }; u.searchTurn = LS.state.turnCount;
+      return guardIdle(u, u.searchSpot, 'search');
+    }
+    return act;
   }
   // CALM: the guard routine. Most guards hold station — scanning their arc and shuffling a tile
   // or two around their post; one or two designated patrollers walk a beat between two points.
