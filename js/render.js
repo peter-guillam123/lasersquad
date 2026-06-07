@@ -867,18 +867,31 @@ LS.render = (function () {
   }
 
   // glide a unit across one tile, then call done() — lets the move pause for reaction checks between tiles
+  // ease the camera toward keeping a (moving) world point inside a comfortable centre box. Called
+  // every animation frame so a long walk scrolls smoothly instead of snapping tile-by-tile.
+  function softFollow(wx, wy) {
+    const T = LS.config.tile, V = LS.config.view, cam = LS.state.cam, m = 4 * T;
+    let tx = cam.x, ty = cam.y;
+    if (wx < cam.x + m) tx = wx - m; else if (wx > cam.x + V.cols * T - m) tx = wx - V.cols * T + m;
+    if (wy < cam.y + m) ty = wy - m; else if (wy > cam.y + V.rows * T - m) ty = wy - V.rows * T + m;
+    if (tx === cam.x && ty === cam.y) return;            // comfortably in view — hold still
+    setCamera(cam.x + (tx - cam.x) * 0.2, cam.y + (ty - cam.y) * 0.2); // ease ~20% of the gap per frame
+  }
+
   function animateStep(unit, from, to, done) {
     const ue = unitEls[unit.id], g = ue && ue.g, action = ue && ue.action, T = LS.config.tile;
     const x1 = to.x * T + T / 2, y1 = to.y * T + T / 2;
-    if (!g || !LS.config.anim.enabled) { if (g) g.setAttribute('transform', `translate(${x1},${y1})`); done(); return; }
+    if (!g || !LS.config.anim.enabled) { if (g) g.setAttribute('transform', `translate(${x1},${y1})`); followUnit(unit); done(); return; }
     const x0 = from.x * T + T / 2, y0 = from.y * T + T / 2, dur = LS.config.anim.msPerTile;
     LS.sound.play('step'); // one footfall per tile of the walk
     let start = null;
     function f(ts) {
       if (start === null) start = ts;
       let p = (ts - start) / dur; if (p > 1) p = 1;
-      g.setAttribute('transform', `translate(${x0 + (x1 - x0) * p},${y0 + (y1 - y0) * p})`);
+      const ux = x0 + (x1 - x0) * p, uy = y0 + (y1 - y0) * p;
+      g.setAttribute('transform', `translate(${ux},${uy})`);
       if (action) action.setAttribute('transform', `translate(0,${-Math.abs(Math.sin(p * Math.PI * 3)) * 2.5})`); // walk bob
+      softFollow(ux, uy); // glide the camera with the unit (no per-tile snap)
       if (p < 1) requestAnimationFrame(f); else { if (action) action.removeAttribute('transform'); done(); }
     }
     requestAnimationFrame(f);

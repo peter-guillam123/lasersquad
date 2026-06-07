@@ -412,14 +412,12 @@ LS.ai = (function () {
           }
           wasVisible = visNow;
           LS.render.draw();
-          if (visNow || watching()) LS.render.followUnit(unit); // track it while it stays in view
-          i++; step();
+          i++; step();           // the camera tracks the mover smoothly inside animateStep
         };
         if (reactors.length) { LS.render.draw(); resolveReactions(unit, reactors, after); }
         else after();
       };
       if (wasVisible || watching()) { // visible to the human (or we're watching the AI): glide it so they can watch
-        LS.render.followUnit(unit);
         LS.render.animateStep(unit, from, to, finishStep);
       } else if (LS.config.anim.enabled) {
         // off in the dark: no visuals, but pace a footfall so you hear the enemy on the move

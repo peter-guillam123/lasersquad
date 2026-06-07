@@ -230,8 +230,7 @@ LS.input = (function () {
     let seen = LS.game.visibleEnemyIds(LS.game.viewTeam()); // enemies the watcher already sees when the move began
     function stepOne() {
       if (i >= path.length) return endMove();
-      LS.render.followUnit(unit); // keep the mover on screen as it advances
-      const from = path[i - 1], to = path[i];
+      const from = path[i - 1], to = path[i]; // the camera tracks the mover smoothly inside animateStep
       const dir = LS.util.dirIndex(to.x - from.x, to.y - from.y);
       const glide = () => LS.render.animateStep(unit, from, to, () => {
         LS.game.applyStep(unit, from, to);
