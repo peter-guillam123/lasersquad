@@ -118,29 +118,73 @@ LS.ai = (function () {
     ids.forEach(id => { const k = know[id]; const d = LS.los.dist(u.x, u.y, k.x, k.y); if (d < bestD) { bestD = d; best = k; } });
     return best || LS.game.alertInfo('red').focus || null;
   }
-  // the reachable tile that gets us closest to a goal we can't currently see (pure pursuit)
+  // the reachable tile that gets us strictly CLOSER to a goal we can't see (pure pursuit).
+  // requiring genuine progress is what stops the old ping-pong between two equidistant tiles.
   function stepToward(u, goal) {
     const reach = LS.game.computeReachable(u), cols = cfg().cols;
-    let best = null, bestD = Infinity;
+    let best = null, bestD = LS.los.dist(u.x, u.y, goal.x, goal.y); // must beat where we already stand
     reach.cost.forEach((ap, k) => {
       const x = k % cols, y = Math.floor(k / cols);
-      if (x === u.x && y === u.y) return;
       const d = LS.los.dist(x, y, goal.x, goal.y);
       if (d < bestD) { bestD = d; best = { x, y }; }
     });
     return best;
   }
+  // a door-permeable route to the goal: BFS where a CLOSED door counts as passable (we'll open it
+  // on the way). Returns the tile path toward the goal, or toward the nearest tile we could reach.
+  function navPath(u, goal) {
+    const cols = cfg().cols, rows = cfg().rows, K = (x, y) => y * cols + x;
+    const prev = new Map(), seen = new Set([K(u.x, u.y)]), q = [{ x: u.x, y: u.y }];
+    const CARD = [LS.DIRS[0], LS.DIRS[2], LS.DIRS[4], LS.DIRS[6]]; // N,E,S,W (doors sit on cardinal walls)
+    let best = { x: u.x, y: u.y }, bestD = LS.los.dist(u.x, u.y, goal.x, goal.y);
+    while (q.length) {
+      const cur = q.shift();
+      if (cur.x === goal.x && cur.y === goal.y) { best = cur; break; }
+      const d0 = LS.los.dist(cur.x, cur.y, goal.x, goal.y);
+      if (d0 < bestD) { bestD = d0; best = cur; }
+      for (const nd of CARD) {
+        const nx = cur.x + nd.dx, ny = cur.y + nd.dy, nk = K(nx, ny);
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows || seen.has(nk)) continue;
+        if (!LS.los.isDoor(nx, ny)) {              // a door is always traversable for planning
+          if (LS.los.blocksMove(nx, ny)) continue; // wall / window / intact breakable
+          const occ = LS.game.unitAt(nx, ny);
+          if (occ && occ.id !== u.id && !(nx === goal.x && ny === goal.y)) continue;
+        }
+        seen.add(nk); prev.set(nk, K(cur.x, cur.y)); q.push({ x: nx, y: ny });
+      }
+    }
+    const path = []; let ck = K(best.x, best.y);
+    while (ck !== undefined) { path.unshift({ x: ck % cols, y: Math.floor(ck / cols) }); ck = prev.get(ck); }
+    return path;
+  }
+  // one navigation action toward a goal, opening doors as needed (the heart of hunting AND patrol):
+  // head for the first closed door on the route and open it, otherwise just advance toward the goal.
+  function navStep(u, goal) {
+    if (!goal) return { type: 'end' };
+    const path = navPath(u, goal);
+    let di = -1;
+    for (let i = 1; i < path.length; i++) {
+      const p = path[i];
+      if (LS.los.isDoor(p.x, p.y) && !LS.los.doorOpen(p.x, p.y)) { di = i; break; }
+    }
+    if (di !== -1) {
+      const door = path[di];
+      if (Math.abs(u.x - door.x) + Math.abs(u.y - door.y) === 1) { // standing next to it — open it
+        return u.ap >= cfg().ap.door ? { type: 'openDoor', at: door } : { type: 'end' };
+      }
+      const approach = path[di - 1]; // the open tile just before the door
+      const reach = LS.game.computeReachable(u);
+      if (reach.cost.has(reach.key(approach.x, approach.y))) return { type: 'move', dest: approach, reason: 'hunt' };
+      const near = stepToward(u, approach);
+      return near ? { type: 'move', dest: near, reason: 'hunt' } : { type: 'end' };
+    }
+    const dest = stepToward(u, goal); // open route — just close the distance
+    return dest ? { type: 'move', dest, reason: 'hunt' } : { type: 'end' };
+  }
   function huntDecision(u) {
     if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
     const goal = huntGoal(u);
-    if (!goal) return { type: 'end' };
-    const dest = engageTile(u, goal); // a firing spot toward the goal beats merely closer ground
-    if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'hunt' };
-    const door = doorToward(u, goal); // boxed in: open a door that leads toward them
-    if (door && u.ap >= cfg().ap.door) return { type: 'openDoor', at: door };
-    const step = stepToward(u, goal);
-    if (step && (step.x !== u.x || step.y !== u.y)) return { type: 'move', dest: step, reason: 'hunt' };
-    return { type: 'end' };
+    return goal ? navStep(u, goal) : { type: 'end' };
   }
   // CALM: the guard routine. Most guards hold station — scanning their arc and shuffling a tile
   // or two around their post; one or two designated patrollers walk a beat between two points.
