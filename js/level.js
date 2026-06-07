@@ -58,4 +58,5 @@ LS.level = {
     { id: 'r6', team: 'red',  name: 'Zane', x: 31, y: 23, facing: 6, weapon: 'plasma' },
   ],
   unitHp: 10,
+  budget: 280, // credits the player spends arming the squad in the equip phase
 };

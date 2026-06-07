@@ -406,6 +406,44 @@ LS.input = (function () {
     centerOnTeam('blue'); // frame the attacking squad
     LS.render.draw();
     document.getElementById('start-screen').style.display = 'none';
+    if (aiTeams.length) showEquip(); // vs computer: arm your squad before deploying (hot-seat keeps defaults)
+  }
+
+  // --- equip phase: spend a credit budget kitting out your squad before the mission ---
+  const clipCost = (wid) => Math.ceil(LS.weapons[wid].cost * 0.3);
+  const GRENADE_COST = 6;
+  function soldierCost(u) { return LS.weapons[u.weapon].cost + u.clips * clipCost(u.weapon) + u.grenades * GRENADE_COST; }
+  function showEquip() { renderEquip(); document.getElementById('equip').style.display = 'flex'; }
+  function renderEquip() {
+    const blue = LS.game.teamUnits('blue'), budget = LS.level.budget || 280;
+    let spent = 0;
+    const rows = blue.map(u => {
+      spent += soldierCost(u);
+      const guns = Object.keys(LS.weapons).map(wid =>
+        `<button class="eq-w${u.weapon === wid ? ' on' : ''}" data-eqw="${u.id}:${wid}">${LS.weapons[wid].name}<span>${LS.weapons[wid].cost}c</span></button>`).join('');
+      return `<div class="equip-row">
+        <span class="eq-name">${u.name}</span>
+        <span class="eq-guns">${guns}</span>
+        <span class="eq-step">clips <button data-eqc="${u.id}:-1">−</button><b>${u.clips}</b><button data-eqc="${u.id}:1">+</button></span>
+        <span class="eq-step">nades <button data-eqn="${u.id}:-1">−</button><b>${u.grenades}</b><button data-eqn="${u.id}:1">+</button></span>
+        <span class="eq-cost">${soldierCost(u)}c</span>
+      </div>`;
+    }).join('');
+    document.getElementById('equip-rows').innerHTML = rows;
+    const left = budget - spent;
+    const cr = document.getElementById('equip-credits');
+    cr.textContent = `Credits ${left} / ${budget}`;
+    cr.classList.toggle('over', left < 0);
+    document.getElementById('equip-deploy').disabled = left < 0;
+  }
+  function setWeapon(u, wid) { u.weapon = wid; u.ammo = LS.weapons[wid].clip; } // a new gun comes with a full clip
+  function recommendedLoadout() {
+    LS.game.teamUnits('blue').forEach(u => { setWeapon(u, 'laser'); u.clips = 1; u.grenades = 2; });
+  }
+  function deploy() {
+    document.getElementById('equip').style.display = 'none';
+    LS.game.refreshReach();
+    LS.render.draw();
   }
 
   function init() {
@@ -426,6 +464,7 @@ LS.input = (function () {
         return;
       }
       if (hm.style.display !== 'none') return;         // modal open: swallow game keys
+      if (document.getElementById('equip').style.display === 'flex') return; // arming the squad: keys off
       const T = LS.config.tile;
       const pan = { ArrowLeft: [-T, 0], a: [-T, 0], ArrowRight: [T, 0], d: [T, 0], ArrowUp: [0, -T], w: [0, -T], ArrowDown: [0, T], s: [0, T] }[e.key];
       if (pan) { LS.render.panBy(pan[0], pan[1]); e.preventDefault(); return; }
@@ -496,6 +535,17 @@ LS.input = (function () {
     document.getElementById('restart').addEventListener('click', showStartScreen); // back to the menu to re-pick a mode
     document.getElementById('start-hotseat').addEventListener('click', () => { LS.sound.ensure(); startGame([]); });
     document.getElementById('start-ai').addEventListener('click', () => { LS.sound.ensure(); startGame(['red']); });
+    // equip screen: change a soldier's gun, clips and grenades within budget
+    document.getElementById('equip-rows').addEventListener('click', (e) => {
+      const w = e.target.closest('[data-eqw]'), c = e.target.closest('[data-eqc]'), n = e.target.closest('[data-eqn]');
+      if (w) { const [id, wid] = w.dataset.eqw.split(':'); setWeapon(LS.game.unitById(id), wid); }
+      else if (c) { const [id, d] = c.dataset.eqc.split(':'); const u = LS.game.unitById(id); u.clips = LS.util.clamp(u.clips + (+d), 0, 5); }
+      else if (n) { const [id, d] = n.dataset.eqn.split(':'); const u = LS.game.unitById(id); u.grenades = LS.util.clamp(u.grenades + (+d), 0, 5); }
+      else return;
+      renderEquip();
+    });
+    document.getElementById('equip-quick').addEventListener('click', () => { recommendedLoadout(); deploy(); });
+    document.getElementById('equip-deploy').addEventListener('click', deploy);
     const howto = document.getElementById('howto');
     document.getElementById('howto-btn').addEventListener('click', () => { howto.style.display = 'flex'; });
     document.getElementById('howto-close').addEventListener('click', () => { howto.style.display = 'none'; });
