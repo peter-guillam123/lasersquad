@@ -130,18 +130,28 @@ LS.render = (function () {
   function flushAlertCallout() {
     const a = LS.state.alert && LS.state.alert.red;
     if (!a || !a.pendingCallout) return;
-    const sec = a.pendingCallout.sector;
+    const { kind, sector: sec } = a.pendingCallout;
     a.pendingCallout = null;
+    const word = NUM_WORD[sec] || sec;
+    const anomaly = kind === 'anomaly';
     const banner = document.getElementById('alert-banner');
     if (banner) {
-      banner.textContent = `⚠ INTRUDER SPOTTED · SECTOR ${sec} · ALERT STATUS`;
+      banner.textContent = anomaly
+        ? `◆ ANOMALY · SECTOR ${sec} · INVESTIGATING`
+        : `⚠ INTRUDER SPOTTED · SECTOR ${sec} · ALERT STATUS`;
+      banner.classList.toggle('anomaly', anomaly);
       banner.classList.add('show');
       clearTimeout(alertBannerTimer);
-      alertBannerTimer = setTimeout(() => banner.classList.remove('show'), 3600);
+      alertBannerTimer = setTimeout(() => banner.classList.remove('show'), anomaly ? 3000 : 3600);
     }
     LS.sound.play('radio');
-    LS.sound.speak(`Intruder spotted. Sector ${NUM_WORD[sec] || sec}. Alert status.`);
-    LS.game.log(`⚠ Red squad alerted — intruder in sector ${sec}.`);
+    if (anomaly) {
+      LS.sound.speak(`Anomaly spotted. Sector ${word}. Investigating.`);
+      LS.game.log(`◆ A guard is investigating something in sector ${sec}.`);
+    } else {
+      LS.sound.speak(`Intruder spotted. Sector ${word}. Alert status.`);
+      LS.game.log(`⚠ Red squad alerted — intruder in sector ${sec}.`);
+    }
   }
 
   function draw() {

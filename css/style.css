@@ -103,6 +103,7 @@ body::after {
 .feed-line.glass   { color: #7fd0e0; }
 .feed-line.turn    { color: var(--muted); }
 .feed-line.alert   { color: var(--red); border-color: rgba(255,99,89,0.65); font-weight: 700; letter-spacing: 1px; }
+.feed-line.investigate { color: var(--amber); border-color: rgba(230,173,51,0.5); }
 
 /* the "intruder spotted" klaxon: a big red call-out across the board when red goes to alert */
 .alert-banner {
@@ -117,6 +118,12 @@ body::after {
 .alert-banner.show { opacity: 1; transform: translateX(-50%) scale(1); animation: alertPulse 0.7s ease-in-out 3; }
 @keyframes alertPulse { 50% { box-shadow: 0 0 0 1px rgba(255,99,89,0.5), 0 0 54px rgba(255,99,89,0.6); } }
 @media (prefers-reduced-motion: reduce) { .alert-banner.show { animation: none; } }
+/* the gentler "anomaly — one guard investigating" tier: amber, no urgent pulse */
+.alert-banner.anomaly {
+  color: var(--amber); background: rgba(20,14,4,0.9); border-color: rgba(230,173,51,0.7);
+  box-shadow: 0 0 0 1px rgba(230,173,51,0.25), 0 0 30px rgba(230,173,51,0.3);
+}
+.alert-banner.anomaly.show { animation: none; }
 
 .overlay {
   position: absolute; inset: 0; display: none;

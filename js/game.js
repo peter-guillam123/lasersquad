@@ -32,9 +32,9 @@ LS.game = (function () {
       craters: new Set(),         // tiles cratered by a blast (impassable holes)
       wallHp: new Map(),          // hidden durability per breakable wall: key -> {hp, max}
       cam: { x: 0, y: 0 },        // camera top-left in world pixels (the scroll position)
-      // red squad awareness: 'calm' = on patrol; 'alert' = has spotted the player and hunts.
-      // latched = can never stand down (a shot was fired, or two+ guards have sighted you).
-      alert: { red: { level: 'calm', latched: false, seers: {}, contactSince: false, quiet: 0, focus: null, pendingCallout: null } },
+      // red squad awareness: 'calm' = on patrol; 'investigating' = ONE guard checking out a
+      // single glimpse (rest stay calm); 'alert' = whole squad hunting. latched = can't stand down.
+      alert: { red: { level: 'calm', latched: false, seers: {}, contactSince: false, quiet: 0, focus: null, investigator: null, pendingCallout: null } },
     };
     // give every breakable wall a hidden, randomised durability
     for (let y = 0; y < LS.config.rows; y++)
@@ -207,21 +207,31 @@ LS.game = (function () {
     const a = LS.state.alert.red;
     const seers = redSeers();
     if (!seers.length && !shotAt) return;
-    const wasCalm = a.level === 'calm';
     seers.forEach(s => { a.seers[s.guard.id] = true; }); // remember distinct guards who've sighted you
+    const seerCount = Object.keys(a.seers).length;
     const contact = (seers[0] && seers[0].target) || shotAt || nearestKnownBlue(null);
     if (contact) a.focus = { x: contact.x, y: contact.y };
-    a.level = 'alert';
     a.contactSince = true;
-    if (shotAt || Object.keys(a.seers).length >= 2) a.latched = true;
-    if (wasCalm) a.pendingCallout = { sector: a.focus ? sector(a.focus.x, a.focus.y) : 1 };
+    const sec = a.focus ? sector(a.focus.x, a.focus.y) : 1;
+    // a shot, or a SECOND independent witness, escalates the whole squad to a (latched) full alert
+    if (shotAt || seerCount >= 2) {
+      if (a.level !== 'alert') a.pendingCallout = { kind: 'alert', sector: sec };
+      a.level = 'alert';
+      a.latched = true;
+    } else if (a.level === 'calm') {
+      // a single silent glimpse: just that guard breaks off to investigate; the squad stays calm
+      a.level = 'investigating';
+      a.investigator = seers[0].guard.id;
+      a.pendingCallout = { kind: 'anomaly', sector: sec };
+    } // (already investigating with one seer: same guard keeps looking, no new call-out)
   }
-  // at the start of each red turn: a non-latched alert relaxes after enough quiet turns
+  // at the start of each red turn: a lone investigation that turns up nothing relaxes after a couple
+  // of quiet turns (a full alert is latched and never stands down).
   function coolDownTick() {
     const a = LS.state.alert.red;
-    if (a.level !== 'alert' || a.latched) { a.contactSince = false; return; }
+    if (a.level !== 'investigating') { a.contactSince = false; return; }
     if (a.contactSince) a.quiet = 0;
-    else if (++a.quiet >= ALERT_COOLDOWN) { a.level = 'calm'; a.seers = {}; a.quiet = 0; a.focus = null; }
+    else if (++a.quiet >= ALERT_COOLDOWN) { a.level = 'calm'; a.seers = {}; a.quiet = 0; a.focus = null; a.investigator = null; }
     a.contactSince = false;
   }
 

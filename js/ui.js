@@ -9,6 +9,7 @@ LS.ui = (function () {
   let lastLogLen = 0, feedTimer = null; // for the on-screen event feed
   function classify(m) {                // colour-code a log line for the feed
     const s = m.toLowerCase();
+    if (s.includes('investigat') || m.includes('◆')) return 'investigate';
     if (s.includes('alert') || m.includes('⚠')) return 'alert';
     if (s.includes('down') || s.includes('eliminated') || s.includes('wins')) return 'kill';
     if (s.includes('grenade') || s.includes('blast')) return 'grenade';

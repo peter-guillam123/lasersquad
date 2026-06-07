@@ -256,8 +256,12 @@ LS.ai = (function () {
     if (t) return u.ap >= W().fireCost ? { type: 'fire', target: t } : { type: 'end' };
     if (nade && nade.blue >= 1) return { type: 'throw', at: nade }; // can't shoot them — flush them out with a grenade
     const seen = enemiesSeen(u);
-    if (!seen.length) { // nothing in sight: hunt the last-known position if alerted, else patrol
-      return LS.game.alertLevel(u.team) === 'alert' ? huntDecision(u) : patrolDecision(u);
+    if (!seen.length) { // nothing in sight: hunt the last-known position, or patrol
+      const lvl = LS.game.alertLevel(u.team);
+      if (lvl === 'alert') return huntDecision(u);                                  // whole squad hunts
+      const info = LS.game.alertInfo(u.team);
+      if (lvl === 'investigating' && info && info.investigator === u.id) return huntDecision(u); // lone investigator
+      return patrolDecision(u);                                                     // everyone else carries on
     }
     const goal = nearest(u, seen);
     const glass = glassBlocking(u, goal);
