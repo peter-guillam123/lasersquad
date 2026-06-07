@@ -41,6 +41,32 @@
 
     <h2>Development diary</h2>
 
+    <div class="entry milestone">
+      <div class="date">7 JUNE 2026</div>
+      <h3>Guards who notice you</h3>
+      <p>Watching the enemy turn with the fog lifted had told me the uncomfortable truth: the defenders were
+        passive. They only ever reacted to what they could see <em>right now</em>, so a soldier who watched one of
+        mine cross a doorway and slip away simply forgot about it. Worse, with my squad starting far off, the whole
+        enemy turn was six guards looking around and doing nothing. This is the fix, and it's the biggest change to
+        how the game plays since the AI first drew breath.</p>
+      <p>The defenders now have two states. <strong>Calm</strong>: they don't know you're coming, so they keep a
+        guard routine — most hold their post, scanning their arc and shifting their weight a tile at a time, while a
+        couple walk a proper beat through the rooms nearest the way in. <strong>Alert</strong>: the moment any one
+        of them sights one of mine — or a shot is fired anywhere — the whole squad switches on (I'm assuming they
+        have radios), and instead of shrugging when they lose sight of you, they converge on where you were last
+        seen. The "last seen" memory was already in the game; it's what draws those faded question marks on my side.
+        The guards had the same memory all along — they just weren't using it. Now they are.</p>
+      <p>Getting spotted is a moment now. The instant a guard clocks you, a klaxon goes up across the board —
+        <span style="color:#ff5d5d">⚠ INTRUDER SPOTTED · SECTOR 2 · ALERT STATUS</span> — with a burst of radio
+        static and a voice (the browser's own, pitched down, naming the sector you were caught in). No recordings,
+        nothing to download; the line is spoken on the fly so it can tell you <em>where</em>.</p>
+      <p>And the alert isn't a one-way ratchet — at least not always. A single silent glimpse, with no shot fired
+        and no second witness, will fade back to calm if you break contact and stay quiet for a couple of turns —
+        so a careful player can slip the net. But the moment a shot rings out, or a second guard independently spots
+        you, it latches: now they know, and they stay switched on for good. Put the Watch AI toggle on and end your
+        turn to see the whole thing play out — it's a different game when the building knows you're in it.</p>
+    </div>
+
     <div class="entry">
       <div class="date">7 JUNE 2026</div>
       <h3>Watching the enemy think</h3>
