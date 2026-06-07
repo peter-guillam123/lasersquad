@@ -182,9 +182,28 @@ LS.ai = (function () {
     const dest = stepToward(u, goal); // open route — just close the distance
     return dest ? { type: 'move', dest, reason } : { type: 'end' };
   }
+  // a chokepoint worth holding overwatch on toward the threat — but only one we're genuinely NEAR,
+  // so distant guards advance to a forward position first rather than camping from the back. The
+  // threat tile itself if it's close and in clean view (an open approach), else a nearby DOOR on the
+  // route to it that we can already cover. null = nothing close to hold (so we should advance).
+  function chokepointToward(u, threat) {
+    const DOOR_HOLD = 4, OPEN_HOLD = 6; // how close a chokepoint / open approach must be to hold it
+    if (LS.los.dist(u.x, u.y, threat.x, threat.y) <= OPEN_HOLD && LS.los.lineClear(u.x, u.y, threat.x, threat.y, LS.los.blocksShot)) return threat;
+    const path = navPath(u, threat);
+    for (let i = 1; i < path.length; i++) {
+      const p = path[i];
+      if (LS.los.isDoor(p.x, p.y)) {
+        if (LS.los.dist(u.x, u.y, p.x, p.y) <= DOOR_HOLD && LS.los.lineClear(u.x, u.y, p.x, p.y, LS.los.blocksShot)) return p;
+        return null; // the chokepoint ahead is too far to hold yet — close in on it instead
+      }
+    }
+    return null;
+  }
   // ALERT pursuit with a search-and-return: head for the lead; on reaching a cold trail, guard that
   // spot for a turn, then walk home to your post — so a search reads as sweep-then-return, not a
-  // guard frozen on an empty tile. A fresh lead anywhere cancels it and pursuit resumes.
+  // guard frozen on an empty tile. A fresh lead anywhere cancels it and pursuit resumes. On the way,
+  // a guard that already covers a doorway/approach holds overwatch there (reaction shot reserved)
+  // rather than charging into the open.
   function huntDecision(u) {
     const post = u.post || { x: u.x, y: u.y };
     const goal = huntGoal(u);
@@ -204,6 +223,12 @@ LS.ai = (function () {
     }
     // pursuing the lead
     if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
+    // sentries hold overwatch on a chokepoint they cover (reaction shot reserved); patrollers are the
+    // rovers — they keep pushing and searching, so the squad both covers the approaches and hunts.
+    if (!u.patrol && LS.game.alertLevel(u.team) === 'alert' && u.ap >= W().fireCost) {
+      const watch = chokepointToward(u, goal);
+      if (watch) return { type: 'overwatch', at: watch };
+    }
     const act = LS.los.dist(u.x, u.y, goal.x, goal.y) <= 1 ? { type: 'end' } : navStep(u, goal, 'hunt');
     if (act.type === 'end') { // reached the spot (or blocked) — begin guarding it, remember we swept it
       u.searchPhase = 'guard'; u.searchSpot = { x: u.x, y: u.y };
@@ -361,6 +386,7 @@ LS.ai = (function () {
       case 'throw':       return { text: 'grenade out', color: '#ff9a3c' };
       case 'shootWindow': return { text: 'clearing a window', color: '#5fbcc6' };
       case 'openDoor':    return { text: 'opening a door', color: '#c8a23c' };
+      case 'overwatch':   return { text: 'holding overwatch', color: '#ff9a3c' };
       case 'face':        return { text: action.look === 'window' ? 'watching a window' : 'scanning', color: '#9a946f' };
       case 'move':
         if (action.reason === 'retreat') return { text: 'falling back', color: '#5fbcc6' };
@@ -499,6 +525,12 @@ LS.ai = (function () {
     delay(120, done);
   }
 
+  function aiOverwatch(unit, at, done) { // hold position facing the approach; spend no AP, so a shot stays in hand
+    LS.game.faceToward(unit, at.x, at.y);
+    LS.render.draw();
+    delay(140, done);
+  }
+
   function actUnit(u, done) {
     if (!u.alive || LS.state.over) return done();
     const apBefore = u.ap;
@@ -512,6 +544,7 @@ LS.ai = (function () {
       if (action.type === 'throw') return aiThrow(u, action.at, cont);
       if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
       if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);
+      if (action.type === 'overwatch') return aiOverwatch(u, action.at, cont);
       if (action.type === 'face') return aiFace(u, action.dir, cont);
       if (action.type === 'move') {
         const reach = LS.game.computeReachable(u);
