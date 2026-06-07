@@ -120,7 +120,7 @@ LS.ai = (function () {
       const killShot = t && LS.game.hitChance(u, t.x, t.y) >= 0.5 && t.hp <= W().dmgMax;
       if (!killShot) {                                          // badly hurt and exposed: fall back, unless a kill is right there
         const safe = retreatTile(u);
-        if (safe && (safe.x !== u.x || safe.y !== u.y)) return { type: 'move', dest: safe };
+        if (safe && (safe.x !== u.x || safe.y !== u.y)) return { type: 'move', dest: safe, reason: 'retreat' };
       }
     }
     if (t) return u.ap >= W().fireCost ? { type: 'fire', target: t } : { type: 'end' };
@@ -132,15 +132,32 @@ LS.ai = (function () {
     if (glass && u.ap >= W().fireCost) return { type: 'shootWindow', at: glass };
     if (u.ap >= cfg().ap.moveOrtho) {
       const dest = engageTile(u, goal);
-      if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest };
+      if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'engage' };
       const door = doorToward(u, goal); // boxed in: open a door that leads toward the enemy
       if (door && u.ap >= cfg().ap.door) return { type: 'openDoor', at: door };
     }
     return { type: 'end' };
   }
 
+  // a short human-readable caption for the debug "watch AI" mode
+  function describe(u, action) {
+    switch (action.type) {
+      case 'fire':        return { text: `firing at ${action.target.name}`, color: '#ff5d5d' };
+      case 'throw':       return { text: 'grenade out', color: '#ff9a3c' };
+      case 'shootWindow': return { text: 'clearing a window', color: '#5fbcc6' };
+      case 'openDoor':    return { text: 'opening a door', color: '#c8a23c' };
+      case 'move':        return action.reason === 'retreat'
+                            ? { text: 'falling back', color: '#5fbcc6' }
+                            : { text: 'advancing', color: '#e6ad33' };
+      default:            return enemiesSeen(u).length
+                            ? { text: 'holding', color: '#9a946f' }
+                            : { text: 'no target — holds', color: '#9a946f' };
+    }
+  }
+
   // --- the hands: execute a turn, fog-fairly -------------------------------
   const seenByHuman = (x, y) => LS.game.teamVision(LS.game.viewTeam()).has(LS.game.key(x, y));
+  const watching = () => LS.render.isWatching();
   const delay = (ms, fn) => setTimeout(fn, LS.config.anim.enabled ? ms : 0);
 
   // the human's soldiers overwatching an advancing AI unit get their reaction shot
@@ -200,7 +217,7 @@ LS.ai = (function () {
   function aiOpenDoor(unit, at, done) {
     const res = LS.game.toggleDoor(unit, at.x, at.y);
     if (!res.ok) return done();
-    if (seenByHuman(unit.x, unit.y) || seenByHuman(at.x, at.y)) { // only seen/heard if you can see it
+    if (seenByHuman(unit.x, unit.y) || seenByHuman(at.x, at.y) || watching()) { // only seen/heard if you can see it
       LS.sound.play('door');
       LS.render.reveal(unit.id);
       LS.render.focusTile(unit.x, unit.y, () => {
@@ -232,13 +249,13 @@ LS.ai = (function () {
           }
           wasVisible = visNow;
           LS.render.draw();
-          if (visNow) LS.render.followUnit(unit); // track it while it stays in view
+          if (visNow || watching()) LS.render.followUnit(unit); // track it while it stays in view
           i++; step();
         };
         if (reactors.length) { LS.render.draw(); resolveReactions(unit, reactors, after); }
         else after();
       };
-      if (wasVisible) { // visible to the human: glide it so they can watch
+      if (wasVisible || watching()) { // visible to the human (or we're watching the AI): glide it so they can watch
         LS.render.followUnit(unit);
         LS.render.animateStep(unit, from, to, finishStep);
       } else if (LS.config.anim.enabled) {
@@ -260,28 +277,37 @@ LS.ai = (function () {
       actUnit(u, done);
     };
     const action = decide(u);
-    if (action.type === 'fire') return aiFire(u, action.target, cont);
-    if (action.type === 'throw') return aiThrow(u, action.at, cont);
-    if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
-    if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);
-    if (action.type === 'move') {
-      const reach = LS.game.computeReachable(u);
-      const path = LS.game.pathTo(reach, action.dest.x, action.dest.y);
-      if (!path || path.length < 2) return done();
-      return aiMove(u, path, cont);
-    }
-    done();
+    const run = () => {
+      if (action.type === 'fire') return aiFire(u, action.target, cont);
+      if (action.type === 'throw') return aiThrow(u, action.at, cont);
+      if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
+      if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);
+      if (action.type === 'move') {
+        const reach = LS.game.computeReachable(u);
+        const path = LS.game.pathTo(reach, action.dest.x, action.dest.y);
+        if (!path || path.length < 2) return done();
+        return aiMove(u, path, cont);
+      }
+      done();
+    };
+    if (watching()) { // pan to the unit, caption what it's about to do, hold a beat so you can read it
+      const cap = describe(u, action);
+      LS.render.focusTile(u.x, u.y, () => { LS.render.setAiLabel(u, cap.text, cap.color); delay(620, run); });
+    } else run();
   }
 
   // play the whole turn for the active (AI) team, then call onDone
   function takeTurn(onDone) {
     LS.game.selectUnit(null); // the human isn't selecting anything during the AI turn
     LS.state.busy = true;
+    LS.render.setWatchAll(!!(LS.config.debug && LS.config.debug.watchAI)); // debug: lift the fog for the turn
+    if (LS.render.isWatching()) LS.render.draw(); // paint the fog-lifted board before the first action
     LS.ui.update();
     const units = LS.game.teamUnits(LS.state.activeTeam).slice();
     let idx = 0;
+    const finish = () => { LS.render.setWatchAll(false); LS.render.draw(); LS.state.busy = false; onDone && onDone(); };
     function nextUnit() {
-      if (LS.state.over || idx >= units.length) { LS.state.busy = false; return onDone && onDone(); }
+      if (LS.state.over || idx >= units.length) return finish();
       const u = units[idx++];
       if (!u.alive) return nextUnit();
       actUnit(u, () => delay(160, nextUnit));

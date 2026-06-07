@@ -131,12 +131,14 @@ LS.render = (function () {
     drawUnits(T, C);
     drawFacing(-1);
     clear(layers.hover);
+    if (watchAll) renderAiLabel(); // keep the debug caption pinned above the acting unit
     LS.ui.update();
   }
 
   // veil every tile the active squad can't currently see
   function drawFog(T, C) {
     clear(layers.fog);
+    if (watchAll) return; // debug: watching the AI — the whole board is lit
     for (let y = 0; y < LS.config.rows; y++)
       for (let x = 0; x < LS.config.cols; x++)
         if (!vision.has(LS.game.key(x, y)))
@@ -703,12 +705,38 @@ LS.render = (function () {
   function reveal(id) { revealed.add(id); }
   function unreveal(id) { revealed.delete(id); }
 
+  // --- debug "watch AI" mode: lift the fog for the whole enemy turn and caption each decision ---
+  let watchAll = false;                 // when true, draw() shows every unit and skips the fog veil
+  function setWatchAll(b) { watchAll = b; if (!b) clearAiLabel(); }
+  function isWatching() { return watchAll; }
+  let aiLabel = null;                   // { unitId, text, color, el } — a caption that follows the acting unit
+  function clearAiLabel() { if (aiLabel && aiLabel.el) aiLabel.el.remove(); aiLabel = null; }
+  function setAiLabel(unit, text, color) {
+    clearAiLabel();
+    if (!unit || !text) return;
+    aiLabel = { unitId: unit.id, text, color: color || '#e6ad33' };
+    renderAiLabel();
+  }
+  function renderAiLabel() {             // (re)draw the caption above its unit; called each draw() so it tracks moves
+    if (!aiLabel) return;
+    if (aiLabel.el) { aiLabel.el.remove(); aiLabel.el = null; }
+    const u = LS.game.unitById(aiLabel.unitId);
+    if (!u || !u.alive) return;
+    const T = LS.config.tile, cx = u.x * T + T / 2, cy = u.y * T + T / 2;
+    const w = Math.max(T * 0.8, aiLabel.text.length * 6.6 + 14);
+    const g = el('g', { transform: `translate(${cx},${cy - T * 0.66})` }, layers.fx);
+    el('rect', { x: -w / 2, y: -10, width: w, height: 18, rx: 3, fill: 'rgba(8,10,6,0.88)', stroke: aiLabel.color, 'stroke-width': 1 }, g);
+    const t = el('text', { x: 0, y: 3.5, fill: aiLabel.color, 'font-size': 11, 'font-family': 'monospace', 'font-weight': 700, 'text-anchor': 'middle' }, g);
+    t.textContent = aiLabel.text;
+    aiLabel.el = g;
+  }
+
   function drawUnits(T, C) {
     clear(layers.units);
     for (const id in unitEls) delete unitEls[id];
     const viewer = LS.game.viewTeam();
     LS.state.units.filter(u => u.alive).forEach(u => {
-      if (u.team !== viewer && !vision.has(LS.game.key(u.x, u.y)) && !revealed.has(u.id)) return; // hidden by fog
+      if (!watchAll && u.team !== viewer && !vision.has(LS.game.key(u.x, u.y)) && !revealed.has(u.id)) return; // hidden by fog
       const g = el('g', { transform: `translate(${u.x * T + T / 2},${u.y * T + T / 2})` }, layers.units);
       unitEls[u.id] = { g, action: paintUnit(g, u, T, C) };
     });
@@ -984,5 +1012,5 @@ LS.render = (function () {
     setTimeout(() => done && done(), 320);
   }
 
-  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, focusTile, reveal, unreveal, unitEls };
+  return { init, draw, drawHover, drawFacing, animateStep, refaceUnit, shotFx, glassFx, throwArc, explosionFx, setCamera, centerOn, panBy, followUnit, contactMoment, focusTile, reveal, unreveal, setWatchAll, isWatching, setAiLabel, clearAiLabel, unitEls };
 })();

@@ -47,6 +47,7 @@ body::after {
 .topbar a::after { content: "]"; color: var(--line); }
 .mutebtn { background: none; border: 1px solid var(--line); color: var(--muted); font-family: var(--mono); font-size: 11px; letter-spacing: 0.5px; padding: 5px 10px; border-radius: 2px; cursor: pointer; }
 .mutebtn:hover { color: var(--amber); border-color: var(--amber); }
+.mutebtn.on { color: var(--amber); border-color: rgba(230,173,51,0.6); background: rgba(230,173,51,0.1); }
 
 .game {
   display: flex; gap: 22px; padding: 22px;

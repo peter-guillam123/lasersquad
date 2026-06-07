@@ -48,6 +48,13 @@ LS.config = {
     msPerTile: 150,    // movement glide speed (slower = easier to read the move)
   },
 
+  // debug aids (off by default). watchAI lifts the fog during the enemy turn so you can
+  // watch the AI move, shoot and decide — purely a spectator view; it never changes how the
+  // AI thinks (it still plays fog-fairly), only what you're allowed to see while it plays.
+  debug: {
+    watchAI: false,
+  },
+
   colors: {
     groundA: '#39463c',
     groundB: '#35423a',

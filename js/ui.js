@@ -70,6 +70,9 @@ LS.ui = (function () {
 
     const mb = document.getElementById('mute');
     if (mb) mb.textContent = 'Sound: ' + (LS.sound.isMuted() ? 'off' : 'on');
+
+    const wb = document.getElementById('watch-ai');
+    if (wb) { const on = !!(LS.config.debug && LS.config.debug.watchAI); wb.textContent = 'Watch AI: ' + (on ? 'on' : 'off'); wb.classList.toggle('on', on); }
   }
 
   function renderRoster(elId, team) {

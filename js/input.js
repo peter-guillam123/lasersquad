@@ -492,6 +492,11 @@ LS.input = (function () {
       LS.sound.toggle();
       LS.ui.update();
     });
+    const watchBtn = document.getElementById('watch-ai');
+    if (watchBtn) watchBtn.addEventListener('click', () => {
+      LS.config.debug.watchAI = !LS.config.debug.watchAI;
+      LS.ui.update();
+    });
   }
 
   return { init, showStartScreen };
