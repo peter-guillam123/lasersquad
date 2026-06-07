@@ -338,11 +338,15 @@ LS.ai = (function () {
   function aiFire(shooter, target, done) {
     const res = LS.game.fire(shooter, target);
     if (!res.ok) return done();
-    LS.render.reveal(shooter.id); // firing gives your position away — show the shooter for the shot
-    LS.render.focusTile(shooter.x, shooter.y, () => { // make sure the shot is on screen
+    const seen = seenByHuman(shooter.x, shooter.y) || watching(); // can the player actually see who fired?
+    if (seen) LS.render.reveal(shooter.id); // we can see them — show the shooter for the shot
+    // frame the shooter if visible; otherwise the (always-visible) victim, so a shot from the dark
+    // reads as your soldier being hit from nowhere, not the enemy giving its position away
+    const fx = seen ? shooter : (target.team === LS.game.viewTeam() ? target : shooter);
+    LS.render.focusTile(fx.x, fx.y, () => {
       LS.render.draw();
       LS.render.shotFx(shooter, target, res, () => {
-        LS.render.unreveal(shooter.id);
+        if (seen) LS.render.unreveal(shooter.id);
         LS.render.draw();
         delay(160, done);
       });
@@ -352,11 +356,12 @@ LS.ai = (function () {
   function aiThrow(unit, at, done) {
     const res = LS.game.throwGrenade(unit, at.x, at.y);
     if (!res.ok) return done();
-    LS.render.reveal(unit.id); // throwing gives your position away too
+    const seen = seenByHuman(unit.x, unit.y) || watching();
+    if (seen) LS.render.reveal(unit.id); // show the thrower only if we can see them
     LS.render.focusTile(at.x, at.y, () => { // show where it lands (it is near your soldiers, so on screen)
       LS.render.draw();
       LS.render.throwArc(unit, { x: at.x, y: at.y }, () => {
-        LS.render.unreveal(unit.id);
+        if (seen) LS.render.unreveal(unit.id);
         LS.render.draw();
         delay(180, done);
       });
@@ -366,11 +371,12 @@ LS.ai = (function () {
   function aiShootGlass(unit, at, done) {
     const res = LS.game.shootWindow(unit, at.x, at.y);
     if (!res.ok) return done();
-    LS.render.reveal(unit.id);
-    LS.render.focusTile(unit.x, unit.y, () => {
+    const seen = seenByHuman(unit.x, unit.y) || watching();
+    if (seen) LS.render.reveal(unit.id);
+    LS.render.focusTile(seen ? unit.x : at.x, seen ? unit.y : at.y, () => {
       LS.render.draw();
       LS.render.shotFx(unit, { x: at.x, y: at.y }, { ok: true, hit: true, glass: true }, () => {
-        LS.render.unreveal(unit.id);
+        if (seen) LS.render.unreveal(unit.id);
         LS.render.draw();
         delay(160, done);
       });

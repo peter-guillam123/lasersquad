@@ -104,6 +104,8 @@ body::after {
 .feed-line.turn    { color: var(--muted); }
 .feed-line.alert   { color: var(--red); border-color: rgba(255,99,89,0.65); font-weight: 700; letter-spacing: 1px; }
 .feed-line.investigate { color: var(--amber); border-color: rgba(230,173,51,0.5); }
+.feed-line .nm-y { color: var(--blue); font-weight: 700; } /* your squad renders yellow */
+.feed-line .nm-r { color: var(--red); font-weight: 700; }
 
 /* the "intruder spotted" klaxon: a big red call-out across the board when red goes to alert */
 .alert-banner {

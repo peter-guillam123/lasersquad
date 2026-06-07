@@ -235,6 +235,19 @@ LS.game = (function () {
     a.contactSince = false;
   }
 
+  // --- fog-fair logging: only tell the watching team what their squad could perceive ----------
+  // can the viewing team see this unit now? (their own, or in the squad's shared vision)
+  function witnessed(u) {
+    const V = viewTeam();
+    return u.team === V || teamVision(V).has(key(u.x, u.y));
+  }
+  // log an action by `actor` (optionally hitting `victim`): the full named line if we can see the
+  // actor; an anonymous "felt" line if it struck one of ours from out of sight; nothing otherwise.
+  function logAction(actor, victim, seenMsg, feltMsg) {
+    if (witnessed(actor)) { log(seenMsg); return; }
+    if (feltMsg && victim && victim.team === viewTeam()) log(feltMsg);
+  }
+
   // tiles that enemies the team can currently SEE are able to watch — the fair danger warning
   function enemyDangerSet(team, vision) {
     const set = new Set();
@@ -287,7 +300,7 @@ LS.game = (function () {
     if (wasOpen) LS.state.doorsOpen.delete(kk); else LS.state.doorsOpen.add(kk);
     faceToward(unit, x, y);
     observe(); refreshReach();
-    log(`${unit.name} ${wasOpen ? 'closes' : 'opens'} the door.`);
+    logAction(unit, null, `${unit.name} ${wasOpen ? 'closes' : 'opens'} the door.`, null);
     return { ok: true };
   }
 
@@ -299,7 +312,7 @@ LS.game = (function () {
     LS.state.windowsSmashed.add(key(x, y));
     faceToward(unit, x, y);
     observe(); refreshReach();
-    log(`${unit.name} smashes the window.`);
+    logAction(unit, null, `${unit.name} smashes the window.`, null);
     return { ok: true };
   }
 
@@ -322,7 +335,7 @@ LS.game = (function () {
     observe();
     senseAlert({ x: unit.x, y: unit.y }); // a gunshot, even at glass
     refreshReach();
-    log(`${unit.name} shatters the window with a shot.`);
+    logAction(unit, null, `${unit.name} shatters the window with a shot.`, null);
     return { ok: true };
   }
 
@@ -363,9 +376,14 @@ LS.game = (function () {
       res.hit = true; res.dmg = dmg;
       if (target.hp === 0) { target.alive = false; res.killed = true; }
       const tail = res.killed ? ` — ${target.name} is down!` : '';
-      log(`${tag}${shooter.name} hits ${target.name} for ${dmg}${tail} (${Math.round(chance * 100)}%)`);
+      logAction(shooter, target,
+        `${tag}${shooter.name} hits ${target.name} for ${dmg}${tail} (${Math.round(chance * 100)}%)`,
+        res.killed ? `${target.name} is shot down!` : `${target.name} is hit for ${dmg}!`);
     } else {
-      log(`${tag}${shooter.name} fires at ${target.name} and misses (${Math.round(chance * 100)}%)`);
+      // a miss names the shooter if we can see them; an unseen miss goes unnoticed (no felt line)
+      logAction(shooter, target,
+        `${tag}${shooter.name} fires at ${target.name} and misses (${Math.round(chance * 100)}%)`,
+        null);
     }
     observe();
     senseAlert({ x: shooter.x, y: shooter.y }); // gunfire carries — the red squad hears it
@@ -389,7 +407,7 @@ LS.game = (function () {
     faceToward(unit, x, y);
     LS.state.liveGrenades.push({ x, y, team: unit.team });
     refreshReach();
-    log(`${unit.name} lobs a grenade. It'll go off at end of turn — clear the blast!`);
+    logAction(unit, null, `${unit.name} lobs a grenade. It'll go off at end of turn — clear the blast!`, null);
     return { ok: true };
   }
 
@@ -434,7 +452,7 @@ LS.game = (function () {
       u.hp = Math.max(0, u.hp - dmg);
       const killed = u.hp === 0;
       if (killed) u.alive = false;
-      hits.push({ x, y, dmg, killed, name: u.name });
+      hits.push({ x, y, dmg, killed, name: u.name, team: u.team });
     });
     // chance the tile it lands on becomes an impassable crater (open ground only)
     const ec = LS.los.tileChar(g.x, g.y);
@@ -444,7 +462,13 @@ LS.game = (function () {
     if (hits.length) parts.push(hits.map(h => `${h.name} -${h.dmg}${h.killed ? ' (down)' : ''}`).join(', '));
     if (wallsDown) parts.push(wallsDown > 1 ? `${wallsDown} walls blown open` : 'a wall blown open');
     else if (wallsHit) parts.push('a wall holds');
-    log(parts.length ? `Grenade: ${parts.join('; ')}` : 'Grenade detonates.');
+    // fog-fair: full detail if we can see where it went off; else only our own casualties; else nothing
+    if (teamVision(viewTeam()).has(key(g.x, g.y))) {
+      log(parts.length ? `Grenade: ${parts.join('; ')}` : 'Grenade detonates.');
+    } else {
+      const ours = hits.filter(h => h.team === viewTeam());
+      if (ours.length) log(`An explosion hits ${ours.map(h => `${h.name} -${h.dmg}${h.killed ? ' (down)' : ''}`).join(', ')}`);
+    }
     senseAlert({ x: g.x, y: g.y }); // an explosion is about as loud as the level gets
     return hits;
   }
@@ -485,7 +509,7 @@ LS.game = (function () {
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
     teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet, isAI, viewTeam,
-    alertLevel, alertInfo, sector,
+    alertLevel, alertInfo, sector, witnessed,
     toggleDoor, smashWindowMelee, shootWindow,
     canThrowTo, throwGrenade, blastTiles, detonateGrenade, breakWindow,
     endTurn, resumeTurn, checkWin, log,

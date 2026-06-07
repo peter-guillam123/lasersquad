@@ -19,6 +19,15 @@ LS.ui = (function () {
     if (s.includes('turn') || s.startsWith('—')) return 'turn';
     return '';
   }
+  // tint soldier names in a feed line by team — yellow for your squad, red for theirs
+  function colourNames(msg) {
+    let out = msg;
+    LS.state.units.forEach(u => {
+      const cls = u.team === 'blue' ? 'nm-y' : 'nm-r';
+      out = out.replace(new RegExp('\\b' + u.name + '\\b', 'g'), `<span class="${cls}">${u.name}</span>`);
+    });
+    return out;
+  }
   function update() {
     const s = LS.state;
     // turn banner
@@ -33,7 +42,7 @@ LS.ui = (function () {
     const feed = document.getElementById('feed');
     if (feed) {
       feed.innerHTML = s.log.slice(-4).reverse()
-        .map((m, i) => `<div class="feed-line ${classify(m)}" style="opacity:${[1, 0.72, 0.52, 0.4][i] || 0.4}">${m}</div>`).join('');
+        .map((m, i) => `<div class="feed-line ${classify(m)}" style="opacity:${[1, 0.72, 0.52, 0.4][i] || 0.4}">${colourNames(m)}</div>`).join('');
       if (s.log.length !== lastLogLen) {   // a new event arrived → flash it up, then fade after a beat
         if (lastLogLen !== 0) LS.sound.play('type'); // typewriter clatter (skip the very first paint)
         lastLogLen = s.log.length;
