@@ -14,6 +14,7 @@ LS.config = {
     moveDiag: 3,       // cost to step diagonally
     turn: 0,           // turning is free in this build (auto-facing); a real cost lands with opportunity fire
     door: 4,           // open/close a door, or smash a window from an adjacent tile
+    reload: 4,         // swap in a fresh clip
   },
 
   combat: {
@@ -175,3 +176,25 @@ LS.util = {
     return best;
   },
 };
+
+// --- weapon roster ----------------------------------------------------------
+// Each gun fires two ways: a cheap, less-accurate SNAP shot (also the reaction shot) and a costly,
+// accurate AIMED shot. `acc` is the point-blank hit chance for that mode, before range falloff and
+// cover. dmg is per-hit damage range; range is the firing range; clip is rounds per magazine;
+// cost is credits in the equip phase; weight is reserved for the later carry-limit pass.
+LS.weapons = {
+  pistol: {
+    id: 'pistol', name: 'Pistol', dmgMin: 2, dmgMax: 5, range: 8, clip: 12, weight: 4, cost: 8,
+    modes: { snap: { ap: 4, acc: 0.74 }, aimed: { ap: 7, acc: 0.90 } },
+  },
+  laser: {
+    id: 'laser', name: 'Laser Rifle', dmgMin: 3, dmgMax: 6, range: 12, clip: 10, weight: 8, cost: 20,
+    modes: { snap: { ap: 6, acc: 0.74 }, aimed: { ap: 10, acc: 0.95 } },
+  },
+  plasma: {
+    id: 'plasma', name: 'Heavy Plasma', dmgMin: 5, dmgMax: 9, range: 14, clip: 6, weight: 14, cost: 45,
+    modes: { snap: { ap: 8, acc: 0.64 }, aimed: { ap: 14, acc: 0.92 } },
+  },
+};
+LS.config.defaultWeapon = 'laser'; // a unit with no weapon assigned falls back to this
+LS.config.defaultClips = 1;        // spare clips a unit starts with if none specified

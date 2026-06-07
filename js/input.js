@@ -106,7 +106,7 @@ LS.input = (function () {
           LS.render.draw();
           return;
         }
-        if (sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) {
+        if (sel.ap >= LS.game.fireAP(sel, 'snap') && LS.los.canTarget(sel, tx, ty)) {
           performWindowShot(sel, tx, ty);
           return;
         }
@@ -119,7 +119,7 @@ LS.input = (function () {
       if (clicked && clicked.team !== sel.team) {
         if (LS.los.canTarget(sel, clicked.x, clicked.y)) {
           performShot(sel, clicked);
-        } else if (sel.ap < LS.level.weapon.fireCost) {
+        } else if (sel.ap < LS.game.fireAP(sel, LS.state.fireMode)) {
           LS.game.log('Not enough AP to fire.'); LS.render.draw();
         } else {
           const b = LS.los.firstShotBlocker(sel.x, sel.y, clicked.x, clicked.y);
@@ -198,7 +198,7 @@ LS.input = (function () {
 
   // a player-initiated shot: resolve, then play the feedback, then redraw
   function performShot(shooter, target, opts) {
-    const res = LS.game.fire(shooter, target, opts || {});
+    const res = LS.game.fire(shooter, target, opts || { mode: LS.state.fireMode });
     if (!res.ok) { LS.game.log(res.reason); LS.render.draw(); return; }
     LS.state.busy = true;
     LS.ui.update();
@@ -260,7 +260,7 @@ LS.input = (function () {
     function next() {
       if (j >= reactors.length || !mover.alive) return done();
       const r = reactors[j++];
-      if (r.ap < LS.level.weapon.fireCost || !LS.los.canSee(r, mover.x, mover.y)) return next();
+      if (!LS.game.canSnap(r) || !LS.los.canSee(r, mover.x, mover.y)) return next();
       const res = LS.game.fire(r, mover, { reaction: true });
       LS.render.shotFx(r, mover, res, () => {
         LS.render.draw();
@@ -384,7 +384,7 @@ LS.input = (function () {
   }
   function tryEndTurn() {
     if (LS.state.busy || LS.state.over || LS.state.handoff) return;
-    const ready = LS.game.teamUnits(LS.state.activeTeam).some(u => u.ap >= LS.level.weapon.fireCost);
+    const ready = LS.game.teamUnits(LS.state.activeTeam).some(u => LS.game.canSnap(u));
     if (ready && !endConfirm) {
       endConfirm = true;
       const b = document.getElementById('end-turn');
@@ -445,10 +445,27 @@ LS.input = (function () {
         }
         return;
       }
+      if (e.key === 'f' || e.key === 'F') {            // toggle aimed / snap fire
+        LS.state.fireMode = LS.state.fireMode === 'aimed' ? 'snap' : 'aimed';
+        LS.render.draw();
+        return;
+      }
+      if (e.key === 'r' || e.key === 'R') {            // reload the selected soldier
+        const sel = LS.game.selected();
+        if (sel && sel.team === LS.state.activeTeam) {
+          const res = LS.game.reload(sel);
+          if (!res.ok && res.reason) LS.game.log(res.reason);
+          else if (res.ok) LS.sound.play('door');
+          LS.render.draw();
+        }
+        return;
+      }
     });
     // click a soldier's card to select it, or its grenade button to aim a throw
     document.querySelector('.rosters').addEventListener('click', (e) => {
       if (LS.state.busy || LS.state.over || LS.state.handoff) return;
+      const fb = e.target.closest('.sc-fire');           // toggle aimed / snap fire
+      if (fb) { LS.state.fireMode = LS.state.fireMode === 'aimed' ? 'snap' : 'aimed'; LS.render.draw(); return; }
       const tb = e.target.closest('.sc-throw');
       if (tb) {
         const u = LS.game.unitById(tb.dataset.throw);

@@ -498,21 +498,21 @@ LS.render = (function () {
       } else if (LS.state.reach) {
         const reach = LS.state.reach;
         const armedFill = sel.team === 'blue' ? C.reachBlue : C.reachRed;
-        const fireCost = LS.level.weapon.fireCost;
+        const snapCost = LS.game.fireAP(sel, 'snap'); // AP you must keep back to still get a reaction shot
         reach.cost.forEach((c, k) => {
           if (c === 0) return; // skip the unit's own tile
           const x = k % LS.config.cols, y = Math.floor(k / LS.config.cols);
           // full colour if you'd still have AP banked to react; grey if moving here spends you out
-          const fill = (sel.ap - c) >= fireCost ? armedFill : C.reachSpent;
+          const fill = (sel.ap - c) >= snapCost ? armedFill : C.reachSpent;
           const dangerous = danger.has(k); // red outline = a spotted enemy can shoot you here
           el('rect', {
             x: x * T + 2, y: y * T + 2, width: T - 4, height: T - 4, rx: 4, fill,
             stroke: dangerous ? C.target : 'none', 'stroke-width': dangerous ? 2 : 0,
           }, layers.overlay);
         });
-        if (sel.ap >= LS.level.weapon.fireCost) {
+        if (LS.game.canSnap(sel)) {
           LS.game.teamUnits(sel.team === 'blue' ? 'red' : 'blue').forEach(t => {
-            if (LS.los.canTarget(sel, t.x, t.y)) drawReticle(t.x, t.y, T, C);
+            if (LS.game.canFire(sel, t.x, t.y)) drawReticle(t.x, t.y, T, C);
           });
         }
       }
@@ -838,14 +838,15 @@ LS.render = (function () {
     if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) {
       const adj = Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1;
       if (adj && sel.ap >= LS.config.ap.door) { label('smash', tx * T + T / 2, ty * T - 6, C.select, T); return; }
-      if (!adj && sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) { label('shoot glass', tx * T + T / 2, ty * T - 6, C.target, T); return; }
+      if (!adj && LS.game.canFire(sel, tx, ty) && sel.ap >= LS.game.fireAP(sel, 'snap')) { label('shoot glass', tx * T + T / 2, ty * T - 6, C.target, T); return; }
     }
 
-    // hit-chance readout over a targetable enemy (reflects cover)
-    if (hovVisible && hov.team !== sel.team && sel.ap >= LS.level.weapon.fireCost && LS.los.canTarget(sel, tx, ty)) {
-      const ch = LS.game.hitChance(sel, tx, ty);
+    // hit-chance readout over a targetable enemy — for the currently-selected fire mode (reflects cover)
+    if (hovVisible && hov.team !== sel.team && LS.game.canFire(sel, tx, ty) && sel.ap >= LS.game.fireAP(sel, LS.state.fireMode)) {
+      const mode = LS.state.fireMode;
+      const ch = LS.game.hitChance(sel, tx, ty, mode);
       const cover = LS.game.inCoverFrom(tx, ty, sel.x, sel.y);
-      label(`${Math.round(ch * 100)}%${cover ? ' · cover' : ''}`, tx * T + T / 2, ty * T - 6, C.target, T);
+      label(`${mode === 'snap' ? 'snap' : 'aimed'} ${Math.round(ch * 100)}%${cover ? ' · cover' : ''}`, tx * T + T / 2, ty * T - 6, C.target, T);
       return;
     }
     // path preview to a reachable empty tile

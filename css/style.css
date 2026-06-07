@@ -234,6 +234,14 @@ body::after {
 .sc-bar { flex: 1; height: 6px; background: #07090a; border: 1px solid var(--line); border-radius: 1px; overflow: hidden; }
 .sc-bar i { display: block; height: 100%; }
 .sc-num { width: 22px; text-align: right; font-size: 11px; font-variant-numeric: tabular-nums; color: var(--ink); }
+.sc-gun { flex: 1; font-size: 11px; letter-spacing: 0.3px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sc-gun.empty { color: var(--red); }
+.sc-fire { /* aimed/snap toggle, shown on the selected soldier */
+  background: rgba(230,173,51,0.14); border: 1px solid rgba(230,173,51,0.55); border-radius: 2px;
+  color: var(--amber); font: inherit; font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  line-height: 1; padding: 2px 5px; cursor: pointer;
+}
+.sc-fire:hover { background: rgba(230,173,51,0.24); }
 /* per-soldier grenade button (replaces the old standalone Throw button) */
 .sc-throw {
   display: inline-flex; align-items: center; gap: 3px;

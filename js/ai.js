@@ -3,21 +3,21 @@
 // moving through the dark resolves instantly off-camera; it pops into view, with the
 // contact alert, the moment it crosses into your sight or fires at you).
 LS.ai = (function () {
-  const W = () => LS.level.weapon;
+  const W = (u) => LS.game.weaponOf(u); // this unit's gun (per-soldier now)
   const cfg = () => LS.config;
 
   // --- the brain: pure decisions, no animation -----------------------------
   function enemiesSeen(u) {
     return LS.state.units.filter(e => e.alive && e.team !== u.team && LS.los.canSee(u, e.x, e.y));
   }
-  function shootable(u) {
-    return enemiesSeen(u).filter(e => LS.los.canTarget(u, e.x, e.y));
+  function shootable(u) { // enemies we can actually put a round into now (range, line of sight, ammo)
+    return enemiesSeen(u).filter(e => LS.game.canFire(u, e.x, e.y));
   }
-  // value of shooting a target: expected damage, with a nudge to finish the wounded
+  // value of shooting a target: expected damage (aimed), with a nudge to finish the wounded
   function shotValue(u, t) {
-    const p = LS.game.hitChance(u, t.x, t.y);
-    let v = p * (W().dmgMin + W().dmgMax) / 2;       // expected damage
-    if (p >= 0.5 && t.hp <= W().dmgMax) v += 4;        // can likely finish them off
+    const w = W(u), p = LS.game.hitChance(u, t.x, t.y, 'aimed');
+    let v = p * (w.dmgMin + w.dmgMax) / 2;             // expected damage
+    if (p >= 0.5 && t.hp <= w.dmgMax) v += 4;          // can likely finish them off
     v += (t.maxHp - t.hp) * 0.25;                      // prefer the already-hurt
     return v;
   }
@@ -31,14 +31,14 @@ LS.ai = (function () {
   // best reachable tile to engage `goal`: a tile we can shoot from (AP to spare) beats one that is
   // merely closer; ending next to cover is a tie-breaker
   function engageTile(u, goal) {
-    const reach = LS.game.computeReachable(u), cols = cfg().cols, w = W();
+    const reach = LS.game.computeReachable(u), cols = cfg().cols, w = W(u);
     let best = null, score = -Infinity;
     reach.cost.forEach((ap, k) => {
       const x = k % cols, y = Math.floor(k / cols);
       if (x === u.x && y === u.y) return;
       const apLeft = u.ap - ap;
       const canShoot = LS.los.dist(x, y, goal.x, goal.y) <= w.range
-        && LS.los.lineClear(x, y, goal.x, goal.y, LS.los.blocksShot) && apLeft >= w.fireCost;
+        && LS.los.lineClear(x, y, goal.x, goal.y, LS.los.blocksShot) && apLeft >= w.modes.snap.ap;
       const d = LS.DIRS[LS.util.nearestDir(goal.x - x, goal.y - y)];
       const inCover = LS.los.givesCover(x + d.dx, y + d.dy);
       let s = -LS.los.dist(x, y, goal.x, goal.y);      // closer is better
@@ -51,7 +51,7 @@ LS.ai = (function () {
   // an intact window that is the thing blocking our shot at e (so shattering it opens a firing line)
   function glassBlocking(u, e) {
     const b = LS.los.firstShotBlocker(u.x, u.y, e.x, e.y);
-    if (b && LS.los.isWindow(b.x, b.y) && !LS.los.windowSmashed(b.x, b.y) && LS.los.dist(u.x, u.y, b.x, b.y) <= W().range) return b;
+    if (b && LS.los.isWindow(b.x, b.y) && !LS.los.windowSmashed(b.x, b.y) && LS.los.dist(u.x, u.y, b.x, b.y) <= W(u).range) return b;
     return null;
   }
   // an adjacent closed door whose far side is passable and lies toward the enemy (worth opening to sally/advance)
@@ -225,7 +225,7 @@ LS.ai = (function () {
     if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
     // sentries hold overwatch on a chokepoint they cover (reaction shot reserved); patrollers are the
     // rovers — they keep pushing and searching, so the squad both covers the approaches and hunts.
-    if (!u.patrol && LS.game.alertLevel(u.team) === 'alert' && u.ap >= W().fireCost) {
+    if (!u.patrol && LS.game.alertLevel(u.team) === 'alert' && LS.game.canSnap(u)) {
       const watch = chokepointToward(u, goal);
       if (watch) return { type: 'overwatch', at: watch };
     }
@@ -350,13 +350,20 @@ LS.ai = (function () {
     if (nade && nade.blue >= 2) return { type: 'throw', at: nade }; // a grenade that catches two+ is too good to skip
     const hurt = u.hp <= Math.max(3, Math.ceil(u.maxHp * 0.3));
     if (hurt && u.ap >= cfg().ap.moveOrtho && threatenedAt(u, u.x, u.y)) {
-      const killShot = t && LS.game.hitChance(u, t.x, t.y) >= 0.5 && t.hp <= W().dmgMax;
+      const killShot = t && LS.game.hitChance(u, t.x, t.y, 'aimed') >= 0.5 && t.hp <= W(u).dmgMax;
       if (!killShot) {                                          // badly hurt and exposed: fall back, unless a kill is right there
         const safe = retreatTile(u);
         if (safe && (safe.x !== u.x || safe.y !== u.y)) return { type: 'move', dest: safe, reason: 'retreat' };
       }
     }
-    if (t) return u.ap >= W().fireCost ? { type: 'fire', target: t } : { type: 'end' };
+    // out of ammo with a fresh clip, and there's reason to be ready (a foe in sight, or on alert): reload
+    if (u.ammo <= 0 && u.clips > 0 && u.ap >= cfg().ap.reload &&
+      (enemiesSeen(u).length || LS.game.alertLevel(u.team) === 'alert')) return { type: 'reload' };
+    if (t) { // a clear shot: take the accurate aimed shot if we can afford it, else a cheap snap
+      if (u.ap >= W(u).modes.aimed.ap) return { type: 'fire', target: t, mode: 'aimed' };
+      if (u.ap >= W(u).modes.snap.ap) return { type: 'fire', target: t, mode: 'snap' };
+      return { type: 'end' };
+    }
     if (nade && nade.blue >= 1) return { type: 'throw', at: nade }; // can't shoot them — flush them out with a grenade
     const seen = enemiesSeen(u);
     if (!seen.length) { // nothing in sight: hunt the last-known position, or patrol
@@ -368,7 +375,7 @@ LS.ai = (function () {
     }
     const goal = nearest(u, seen);
     const glass = glassBlocking(u, goal);
-    if (glass && u.ap >= W().fireCost) return { type: 'shootWindow', at: glass };
+    if (glass && LS.game.canSnap(u)) return { type: 'shootWindow', at: glass };
     if (u.ap >= cfg().ap.moveOrtho) {
       const dest = engageTile(u, goal);
       if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'engage' };
@@ -382,7 +389,8 @@ LS.ai = (function () {
   function describe(u, action) {
     const alert = LS.game.alertLevel(u.team) === 'alert';
     switch (action.type) {
-      case 'fire':        return { text: `firing at ${action.target.name}`, color: '#ff5d5d' };
+      case 'fire':        return { text: `${action.mode === 'snap' ? 'snap' : 'aimed'} shot at ${action.target.name}`, color: '#ff5d5d' };
+      case 'reload':      return { text: 'reloading', color: '#9a946f' };
       case 'throw':       return { text: 'grenade out', color: '#ff9a3c' };
       case 'shootWindow': return { text: 'clearing a window', color: '#5fbcc6' };
       case 'openDoor':    return { text: 'opening a door', color: '#c8a23c' };
@@ -429,14 +437,14 @@ LS.ai = (function () {
     (function next() {
       if (j >= reactors.length || !mover.alive || LS.state.over) return done();
       const r = reactors[j++];
-      if (r.ap < W().fireCost || !LS.los.canSee(r, mover.x, mover.y)) return next();
+      if (!LS.game.canSnap(r) || !LS.los.canSee(r, mover.x, mover.y)) return next();
       const res = LS.game.fire(r, mover, { reaction: true });
       LS.render.shotFx(r, mover, res, () => { LS.render.draw(); delay(180, next); });
     })();
   }
 
-  function aiFire(shooter, target, done) {
-    const res = LS.game.fire(shooter, target);
+  function aiFire(shooter, target, mode, done) {
+    const res = LS.game.fire(shooter, target, { mode: mode || 'aimed' });
     if (!res.ok) return done();
     const seen = seenByHuman(shooter.x, shooter.y) || watching(); // can the player actually see who fired?
     if (seen) LS.render.reveal(shooter.id); // we can see them — show the shooter for the shot
@@ -543,6 +551,13 @@ LS.ai = (function () {
     if (fogTour) tourTo(dest.x, dest.y, false, step); else step();
   }
 
+  function aiReload(unit, done) { // swap a fresh clip; spends AP, plays the door/mechanical click
+    LS.game.reload(unit);
+    if (seenByHuman(unit.x, unit.y) || watching()) { LS.render.reveal(unit.id); LS.render.draw(); LS.render.unreveal(unit.id); }
+    LS.sound.play('door');
+    delay(beat(), done);
+  }
+
   function aiFace(unit, dir, done) { // a scan: turn on the spot, no AP — so the unit's go ends after it
     if (typeof dir === 'number' && dir >= 0) unit.facing = dir;
     LS.render.draw();
@@ -564,7 +579,8 @@ LS.ai = (function () {
     };
     const action = decide(u);
     const run = () => {
-      if (action.type === 'fire') return aiFire(u, action.target, cont);
+      if (action.type === 'fire') return aiFire(u, action.target, action.mode, cont);
+      if (action.type === 'reload') return aiReload(u, cont);
       if (action.type === 'throw') return aiThrow(u, action.at, cont);
       if (action.type === 'shootWindow') return aiShootGlass(u, action.at, cont);
       if (action.type === 'openDoor') return aiOpenDoor(u, action.at, cont);

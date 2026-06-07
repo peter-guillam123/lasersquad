@@ -100,29 +100,36 @@ LS.ui = (function () {
 
     // your squad: a card each with name, HP, AP, turn-state, and its own grenade button
     box.className = 'roster squad';
-    const apMax = LS.config.ap.max, fireCost = LS.level.weapon.fireCost, moveMin = LS.config.ap.moveOrtho;
+    const apMax = LS.config.ap.max, moveMin = LS.config.ap.moveOrtho;
     const throwCost = LS.config.grenade.throwCost;
     const myTurn = team === LS.state.activeTeam && !LS.state.busy && !LS.state.over;
     box.innerHTML = units.map(u => {
       const sel = LS.state.selectedId === u.id, dead = !u.alive;
       const hpFrac = u.hp / u.maxHp;
       const hpCol = hpFrac > 0.5 ? '#6bd86b' : hpFrac > 0.25 ? '#e0b13a' : '#ff5d5d';
-      // state from AP: still able to react (>= fire cost), low (can move only), or spent.
+      const w = LS.game.weaponOf(u), snapCost = LS.game.fireAP(u, 'snap');
+      // state from AP/ammo: out of ammo, spent, too low to fire, still set to react, or fresh
       let stateCls = 'st-fresh', icon = '', word = '';
       if (dead) { stateCls = ''; }
       else if (u.ap < moveMin) { stateCls = 'st-spent'; icon = ICON_SPENT; word = ' — spent for the turn'; }
-      else if (u.ap < fireCost) { stateCls = 'st-low'; word = ' — moved, too low to return fire'; }
+      else if (u.ammo <= 0) { stateCls = 'st-low'; word = ' — out of ammo'; }
+      else if (u.ap < snapCost) { stateCls = 'st-low'; word = ' — moved, too low to return fire'; }
       else if (u.ap < apMax) { stateCls = 'st-ready'; icon = ICON_EYE; word = ' — moved, still set for opportunity fire'; }
       const aria = dead ? `${u.name}: down`
-        : `${u.name}: ${u.hp} of ${u.maxHp} health, ${u.ap} of ${apMax} action points, ${u.grenades} grenade${u.grenades === 1 ? '' : 's'}${word}`;
+        : `${u.name}: ${w.name}, ${u.ammo} of ${w.clip} rounds, ${u.hp} of ${u.maxHp} health, ${u.ap} of ${apMax} action points, ${u.grenades} grenade${u.grenades === 1 ? '' : 's'}${word}`;
       const arming = LS.state.throwMode === u.id;
       const canThrow = myTurn && !dead && u.grenades > 0 && u.ap >= throwCost;
+      const fireBtn = (sel && myTurn && !dead)
+        ? `<button class="sc-fire" data-firemode="${u.id}" title="Toggle aimed / snap fire (F)">${LS.state.fireMode === 'snap' ? 'SNAP' : 'AIM'}</button>` : '';
       const nade = dead ? '' :
         `<button class="sc-throw${arming ? ' arming' : ''}" data-throw="${u.id}" ${canThrow || arming ? '' : 'disabled'} title="Throw grenade — ${u.grenades} left, ${throwCost} AP" aria-label="${u.name}: ${arming ? 'cancel grenade throw' : 'throw grenade'}, ${u.grenades} left">${ICON_NADE}<span>${u.grenades}</span></button>`;
+      const gun = dead ? '' :
+        `<span class="sc-stat"><span class="sc-lbl">GUN</span><span class="sc-gun${u.ammo <= 0 ? ' empty' : ''}">${w.name} · ${u.ammo}/${w.clip}${u.clips ? ` (+${u.clips})` : ''}</span></span>`;
       return `<div class="squad-card ${team} ${stateCls} ${sel ? 'sel' : ''} ${dead ? 'dead' : ''}" data-id="${u.id}" role="button" tabindex="${dead ? -1 : 0}" aria-label="${aria}">
-        <span class="sc-top"><span class="sc-name">${u.name}${dead ? ' ✕' : ''}</span><span class="sc-meta">${dead ? '' : icon}${nade}</span></span>
+        <span class="sc-top"><span class="sc-name">${u.name}${dead ? ' ✕' : ''}</span><span class="sc-meta">${dead ? '' : icon}${fireBtn}${nade}</span></span>
         <span class="sc-stat"><span class="sc-lbl">HP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(hpFrac * 100)}%;background:${hpCol}"></i></span><span class="sc-num">${dead ? '0' : u.hp}</span></span>
         <span class="sc-stat"><span class="sc-lbl">AP</span><span class="sc-bar"><i style="width:${dead ? 0 : Math.round(100 * u.ap / apMax)}%;background:#e6ad33"></i></span><span class="sc-num">${dead ? '0' : u.ap}</span></span>
+        ${gun}
       </div>`;
     }).join('');
   }

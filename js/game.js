@@ -3,15 +3,21 @@ LS.game = (function () {
   const { clamp, randInt, dirIndex, teamName } = LS.util;
 
   function newGame() {
-    const units = LS.level.units.map(u => ({
-      ...u,
-      hp: LS.level.unitHp,
-      maxHp: LS.level.unitHp,
-      ap: LS.config.ap.max,
-      alive: true,
-      grenades: LS.config.grenade.count,
-      post: { x: u.x, y: u.y }, // home tile the AI's calm patrol routine drifts around
-    }));
+    const units = LS.level.units.map(u => {
+      const wid = LS.weapons[u.weapon] ? u.weapon : LS.config.defaultWeapon; // per-soldier gun (data-driven)
+      return {
+        ...u,
+        hp: LS.level.unitHp,
+        maxHp: LS.level.unitHp,
+        ap: LS.config.ap.max,
+        alive: true,
+        weapon: wid,
+        ammo: LS.weapons[wid].clip,                                        // rounds in the current clip
+        clips: u.clips != null ? u.clips : LS.config.defaultClips,         // spare magazines
+        grenades: u.grenades != null ? u.grenades : LS.config.grenade.count,
+        post: { x: u.x, y: u.y }, // home tile the AI's calm patrol routine drifts around
+      };
+    });
     LS.state = {
       units,
       activeTeam: 'blue',
@@ -28,6 +34,7 @@ LS.game = (function () {
       windowsSmashed: new Set(),  // keys of windows broken (default: all intact)
       liveGrenades: [],           // {x,y,team} thrown this turn, detonate at end of turn (cook)
       throwMode: null,            // unit id currently aiming a grenade, or null
+      fireMode: 'aimed',          // the player's selected shot: 'aimed' (costly, accurate) or 'snap'
       rubble: new Set(),          // tiles blown open by a blast (now passable + see/shoot through)
       craters: new Set(),         // tiles cratered by a blast (impassable holes)
       wallHp: new Map(),          // hidden durability per breakable wall: key -> {hp, max}
@@ -54,6 +61,23 @@ LS.game = (function () {
     return LS.state.units.find(u => u.alive && u.x === x && u.y === y) || null;
   }
   function unitById(id) { return LS.state.units.find(u => u.id === id) || null; }
+  // --- weapons -------------------------------------------------------------
+  function weaponOf(u) { return LS.weapons[u && u.weapon] || LS.weapons[LS.config.defaultWeapon]; }
+  function fireAP(u, mode) { return weaponOf(u).modes[mode].ap; }                 // AP cost of a snap/aimed shot
+  function canSnap(u) { return u.alive && u.ammo > 0 && u.ap >= fireAP(u, 'snap'); } // has a (cheapest) shot in hand
+  function inWeaponRange(shooter, x, y) { return LS.los.dist(shooter.x, shooter.y, x, y) <= weaponOf(shooter).range; }
+  // can this shooter put a round into (x,y) at all: ammo, line of sight, and within the gun's range
+  function canFire(shooter, x, y) { return shooter.ammo > 0 && inWeaponRange(shooter, x, y) && LS.los.canTarget(shooter, x, y); }
+  function reload(unit) {
+    const w = weaponOf(unit);
+    if (unit.ammo >= w.clip || unit.clips <= 0) return { ok: false, reason: 'Nothing to reload.' };
+    if (unit.ap < LS.config.ap.reload) return { ok: false, reason: 'Not enough AP to reload.' };
+    unit.ap -= LS.config.ap.reload;
+    unit.ammo = w.clip; unit.clips -= 1;
+    refreshReach();
+    logAction(unit, null, `${unit.name} reloads.`, null);
+    return { ok: true };
+  }
   function selected() { return LS.state.selectedId ? unitById(LS.state.selectedId) : null; }
   function teamUnits(team) { return LS.state.units.filter(u => u.alive && u.team === team); }
 
@@ -283,10 +307,9 @@ LS.game = (function () {
   // enemies who can see the mover (in arc) AND have a clear shot AND the AP to take it.
   // The two LOS checks differ at glass: a defender behind intact glass sees you but can't fire.
   function findReactors(mover) {
-    const w = LS.level.weapon;
     return LS.state.units
-      .filter(u => u.alive && u.team !== mover.team && u.ap >= w.fireCost &&
-        LS.los.canSee(u, mover.x, mover.y) && LS.los.canTarget(u, mover.x, mover.y))
+      .filter(u => u.alive && u.team !== mover.team && canSnap(u) &&
+        LS.los.canSee(u, mover.x, mover.y) && LS.los.canTarget(u, mover.x, mover.y) && inWeaponRange(u, mover.x, mover.y))
       .sort((a, b) => LS.los.dist(a.x, a.y, mover.x, mover.y) - LS.los.dist(b.x, b.y, mover.x, mover.y));
   }
 
@@ -329,9 +352,11 @@ LS.game = (function () {
   // break a window with a shot from range (the round shatters the glass and stops — no pass-through)
   function shootWindow(unit, x, y) {
     if (!LS.los.isWindow(x, y) || LS.los.windowSmashed(x, y)) return { ok: false };
-    if (unit.ap < LS.level.weapon.fireCost) return { ok: false, reason: 'Not enough AP to fire.' };
-    if (!LS.los.canTarget(unit, x, y)) return { ok: false, reason: 'No line of sight to the window.' };
-    unit.ap -= LS.level.weapon.fireCost;
+    if (unit.ammo <= 0) return { ok: false, reason: 'Out of ammo.' };
+    if (unit.ap < fireAP(unit, 'snap')) return { ok: false, reason: 'Not enough AP to fire.' };
+    if (!canFire(unit, x, y)) return { ok: false, reason: 'No shot to the window.' };
+    unit.ap -= fireAP(unit, 'snap');
+    unit.ammo -= 1;
     faceToward(unit, x, y);
     LS.state.windowsSmashed.add(key(x, y));
     observe();
@@ -352,23 +377,30 @@ LS.game = (function () {
     return LS.los.givesCover(tx + d.dx, ty + d.dy); // reinforced or intact breakable wall
   }
 
-  // single source of truth for hit chance, so the hover % always matches the real shot
-  function hitChance(shooter, tx, ty) {
+  // single source of truth for hit chance, so the hover % always matches the real shot.
+  // mode picks the weapon's snap/aimed accuracy; range falloff and cover then cut it down.
+  function hitChance(shooter, tx, ty, mode) {
+    const w = weaponOf(shooter), m = w.modes[mode] || w.modes.aimed;
     const d = LS.los.dist(shooter.x, shooter.y, tx, ty);
-    let c = LS.config.combat.baseAccuracy - d * LS.config.combat.falloffPerTile;
+    let c = m.acc - d * LS.config.combat.falloffPerTile;
     if (inCoverFrom(tx, ty, shooter.x, shooter.y)) c -= LS.config.combat.coverPenalty;
     return clamp(c, LS.config.combat.minHit, LS.config.combat.maxHit);
   }
 
-  // opts.reaction: a reaction shot — skips the LOS gate (caller checked) and doesn't re-aim the watcher
+  // opts.reaction: a reaction shot (always a snap) — skips the targeting gate (caller checked).
+  // opts.mode: 'snap' or 'aimed' for a deliberate shot (defaults to aimed).
   function fire(shooter, target, opts = {}) {
-    const w = LS.level.weapon;
-    if (shooter.ap < w.fireCost) return { ok: false, reason: 'Not enough AP to fire.' };
-    if (!opts.reaction && !LS.los.canTarget(shooter, target.x, target.y)) return { ok: false, reason: 'No line of sight.' };
+    const w = weaponOf(shooter);
+    const mode = opts.reaction ? 'snap' : (opts.mode || 'aimed');
+    const apCost = w.modes[mode].ap;
+    if (shooter.ammo <= 0) return { ok: false, reason: 'Out of ammo.' };
+    if (shooter.ap < apCost) return { ok: false, reason: 'Not enough AP to fire.' };
+    if (!opts.reaction && !canFire(shooter, target.x, target.y)) return { ok: false, reason: 'No shot from here.' };
 
-    shooter.ap -= w.fireCost;
+    shooter.ap -= apCost;
+    shooter.ammo -= 1;
     if (!opts.reaction) faceToward(shooter, target.x, target.y);
-    const chance = hitChance(shooter, target.x, target.y);
+    const chance = hitChance(shooter, target.x, target.y, mode);
     const tag = opts.reaction ? 'reaction — ' : '';
 
     const res = { ok: true, hit: false, dmg: 0, killed: false, chance, reaction: !!opts.reaction };
@@ -510,6 +542,7 @@ LS.game = (function () {
     newGame, key, unitAt, unitById, selected, teamUnits, isPassable,
     computeReachable, pathTo, refreshReach, selectUnit, faceToward,
     applyStep, findReactors, fire, hitChance, inCoverFrom,
+    weaponOf, fireAP, canSnap, canFire, inWeaponRange, reload,
     teamVision, isVisible, visibleEnemyIds, observe, enemyDangerSet, isAI, viewTeam,
     alertLevel, alertInfo, sector, witnessed,
     toggleDoor, smashWindowMelee, shootWindow,
