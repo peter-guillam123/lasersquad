@@ -46,6 +46,7 @@ LS.config = {
   anim: {
     enabled: true,
     msPerTile: 150,    // movement glide speed (slower = easier to read the move)
+    aiBeat: 320,       // hold after each enemy-turn action the camera tours, so it's parseable
   },
 
   // debug aids (off by default). watchAI lifts the fog during the enemy turn so you can

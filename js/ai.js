@@ -405,6 +405,23 @@ LS.ai = (function () {
   const seenByHuman = (x, y) => LS.game.teamVision(LS.game.viewTeam()).has(LS.game.key(x, y));
   const watching = () => LS.render.isWatching();
   const delay = (ms, fn) => setTimeout(fn, LS.config.anim.enabled ? ms : 0);
+  // --- enemy-turn readability: lead the eye to the action and pace it so the player can parse it ---
+  const beat = () => LS.config.anim.aiBeat || 320; // a readable hold after a toured action
+  const EARSHOT = 8; // an enemy action this near one of your soldiers is heard/sensed (toured); farther is silent
+  function audible(x, y) {
+    const V = LS.game.viewTeam();
+    return LS.state.units.some(u => u.alive && u.team === V && LS.los.dist(u.x, u.y, x, y) <= EARSHOT);
+  }
+  // pan the camera near a point so the eye follows the turn, then hold a beat. Exact if the player
+  // can see it; jittered a tile or two if it's in the fog (you sense roughly where, not exactly).
+  function tourTo(x, y, seen, done) {
+    let tx = x, ty = y;
+    if (!seen) {
+      tx = LS.util.clamp(x + (LS.util.randInt(0, 1) ? 1 : -1) * LS.util.randInt(1, 2), 0, cfg().cols - 1);
+      ty = LS.util.clamp(y + (LS.util.randInt(0, 1) ? 1 : -1) * LS.util.randInt(1, 2), 0, cfg().rows - 1);
+    }
+    LS.render.focusTile(tx, ty, () => delay(beat(), done));
+  }
 
   // the human's soldiers overwatching an advancing AI unit get their reaction shot
   function resolveReactions(mover, reactors, done) {
@@ -469,21 +486,27 @@ LS.ai = (function () {
   function aiOpenDoor(unit, at, done) {
     const res = LS.game.toggleDoor(unit, at.x, at.y);
     if (!res.ok) return done();
-    if (seenByHuman(unit.x, unit.y) || seenByHuman(at.x, at.y) || watching()) { // only seen/heard if you can see it
+    if (seenByHuman(unit.x, unit.y) || seenByHuman(at.x, at.y) || watching()) { // we can see it — reveal & show
       LS.sound.play('door');
       LS.render.reveal(unit.id);
       LS.render.focusTile(unit.x, unit.y, () => {
         LS.render.draw();
         delay(240, () => { LS.render.unreveal(unit.id); LS.render.draw(); done(); });
       });
+    } else if (audible(at.x, at.y)) { // out of sight but within earshot — pan near it and let you hear it
+      LS.render.draw();
+      LS.sound.play('door');
+      tourTo(at.x, at.y, false, done);
     } else {
       LS.render.draw();
-      done();
+      done(); // too far to hear — resolve quietly
     }
   }
 
   function aiMove(unit, path, done) {
     let i = 1, wasVisible = seenByHuman(unit.x, unit.y);
+    const dest = path[path.length - 1];
+    const fogTour = !wasVisible && !watching() && audible(dest.x, dest.y); // heard moving in the dark nearby
     function step() {
       if (i >= path.length || !unit.alive || LS.state.over) return done();
       const from = path[i - 1], to = path[i];
@@ -508,15 +531,16 @@ LS.ai = (function () {
       };
       if (wasVisible || watching()) { // visible to the human (or we're watching the AI): glide it so they can watch
         LS.render.animateStep(unit, from, to, finishStep);
-      } else if (LS.config.anim.enabled) {
-        // off in the dark: no visuals, but pace a footfall so you hear the enemy on the move
+      } else if (LS.config.anim.enabled && audible(to.x, to.y)) {
+        // in the dark but within earshot: a paced footfall so you hear the enemy on the move nearby
         LS.sound.play('step');
-        setTimeout(finishStep, 130);
+        setTimeout(finishStep, 200);
       } else {
-        finishStep();
+        finishStep(); // too far to hear (or no anim) — resolve instantly and silently
       }
     }
-    step();
+    // lead the eye near an audible fog move before it resolves, so you sense where it's coming from
+    if (fogTour) tourTo(dest.x, dest.y, false, step); else step();
   }
 
   function aiFace(unit, dir, done) { // a scan: turn on the spot, no AP — so the unit's go ends after it
@@ -574,7 +598,7 @@ LS.ai = (function () {
       if (LS.state.over || idx >= units.length) return finish();
       const u = units[idx++];
       if (!u.alive) return nextUnit();
-      actUnit(u, () => delay(160, nextUnit));
+      actUnit(u, () => delay(beat(), nextUnit)); // a readable pause between soldiers
     }
     delay(350, nextUnit); // a beat so the human registers the turn change
   }
