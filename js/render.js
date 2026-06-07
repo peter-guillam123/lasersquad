@@ -49,11 +49,15 @@ LS.render = (function () {
   }
   function centerOn(wx, wy) { const T = LS.config.tile, V = LS.config.view; setCamera(wx - V.cols * T / 2, wy - V.rows * T / 2); }
   function panBy(dx, dy) { setCamera(LS.state.cam.x + dx, LS.state.cam.y + dy); }
-  // recentre on a unit only if it's near/past the visible edge (keeps the action on screen without jitter)
-  function followUnit(u) {
+  // recentre on a unit only if it's near/past the visible edge (keeps the action on screen without jitter).
+  // smooth=true glides there (used on selection, so picking a soldier doesn't hard-cut the board);
+  // the move animation tracks instantly (smooth off) so a fast walk stays glued to the camera.
+  function followUnit(u, smooth) {
     const T = LS.config.tile, V = LS.config.view, cam = LS.state.cam;
     const wx = u.x * T + T / 2, wy = u.y * T + T / 2, m = 2.5 * T;
-    if (wx < cam.x + m || wx > cam.x + V.cols * T - m || wy < cam.y + m || wy > cam.y + V.rows * T - m) centerOn(wx, wy);
+    if (wx < cam.x + m || wx > cam.x + V.cols * T - m || wy < cam.y + m || wy > cam.y + V.rows * T - m) {
+      if (smooth) panToCenter(wx, wy, 300); else centerOn(wx, wy);
+    }
   }
 
   const reduceMotion = () => !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);

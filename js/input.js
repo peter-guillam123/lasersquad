@@ -82,7 +82,7 @@ LS.input = (function () {
     // select your own soldier
     if (clicked && clicked.team === LS.state.activeTeam) {
       LS.game.selectUnit(clicked.id);
-      LS.render.followUnit(clicked);
+      LS.render.followUnit(clicked, true); // glide to it if it's near the edge, don't hard-cut
       LS.render.draw();
       return;
     }
@@ -435,7 +435,7 @@ LS.input = (function () {
       if (e.key === 'e' || e.key === 'E') { tryEndTurn(); e.preventDefault(); return; }
       if (e.key >= '1' && e.key <= '9') {              // select the Nth soldier of your squad
         const u = LS.game.teamUnits(LS.state.activeTeam)[+e.key - 1];
-        if (u) { LS.game.selectUnit(u.id); LS.render.followUnit(u); LS.render.draw(); }
+        if (u) { LS.game.selectUnit(u.id); LS.render.followUnit(u, true); LS.render.draw(); }
         return;
       }
       if (e.key === 'g' || e.key === 'G') {            // toggle the selected soldier's grenade aim
@@ -457,7 +457,7 @@ LS.input = (function () {
           const wasArming = LS.state.throwMode === u.id;
           LS.game.selectUnit(u.id);                      // note: selectUnit() clears throwMode
           LS.state.throwMode = wasArming ? null : u.id;  // so toggle off the *prior* state
-          LS.render.followUnit(u);
+          LS.render.followUnit(u, true);
           LS.render.draw();
         }
         return;
@@ -467,7 +467,7 @@ LS.input = (function () {
       const u = LS.game.unitById(card.dataset.id);
       if (u && u.alive && u.team === LS.state.activeTeam) {
         LS.game.selectUnit(u.id);
-        LS.render.followUnit(u);   // pan to it (it may be off-screen)
+        LS.render.followUnit(u, true);   // glide to it (it may be off-screen) rather than jump
         LS.render.draw();
       }
     });
