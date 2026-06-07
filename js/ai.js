@@ -159,7 +159,8 @@ LS.ai = (function () {
   }
   // one navigation action toward a goal, opening doors as needed (the heart of hunting AND patrol):
   // head for the first closed door on the route and open it, otherwise just advance toward the goal.
-  function navStep(u, goal) {
+  function navStep(u, goal, reason) {
+    reason = reason || 'hunt';
     if (!goal) return { type: 'end' };
     const path = navPath(u, goal);
     let di = -1;
@@ -174,12 +175,12 @@ LS.ai = (function () {
       }
       const approach = path[di - 1]; // the open tile just before the door
       const reach = LS.game.computeReachable(u);
-      if (reach.cost.has(reach.key(approach.x, approach.y))) return { type: 'move', dest: approach, reason: 'hunt' };
+      if (reach.cost.has(reach.key(approach.x, approach.y))) return { type: 'move', dest: approach, reason };
       const near = stepToward(u, approach);
-      return near ? { type: 'move', dest: near, reason: 'hunt' } : { type: 'end' };
+      return near ? { type: 'move', dest: near, reason } : { type: 'end' };
     }
     const dest = stepToward(u, goal); // open route — just close the distance
-    return dest ? { type: 'move', dest, reason: 'hunt' } : { type: 'end' };
+    return dest ? { type: 'move', dest, reason } : { type: 'end' };
   }
   function huntDecision(u) {
     if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
@@ -202,41 +203,63 @@ LS.ai = (function () {
     });
     return opts.length ? opts[LS.util.randInt(0, opts.length - 1)] : null;
   }
-  function computeBeat(post) { // the longest clear cardinal run from the post (up to 5 tiles)
-    let best = null;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      let len = 0;
-      for (let s = 1; s <= 5; s++) {
-        const x = post.x + dx * s, y = post.y + dy * s;
-        if (x < 0 || y < 0 || x >= cfg().cols || y >= cfg().rows || LS.los.blocksMove(x, y)) break;
-        len = s;
+  // a patroller's loop: a handful of spread-out waypoints across the door-connected building,
+  // computed once by flooding the rooms from the post (doors count as passable) and then
+  // farthest-point sampling. The patroller navigates door-aware between them, opening doors, and
+  // cycles — so it genuinely tours the building rather than pacing one corridor.
+  function patrolRoute(u) {
+    if (u.route !== undefined) return u.route;
+    const cols = cfg().cols, rows = cfg().rows, K = (x, y) => y * cols + x;
+    const post = u.post || { x: u.x, y: u.y };
+    const seen = new Set([K(post.x, post.y)]), q = [{ x: post.x, y: post.y }], floor = [];
+    const CARD = [LS.DIRS[0], LS.DIRS[2], LS.DIRS[4], LS.DIRS[6]];
+    // flood the BUILDING only: interior floor ('_') and the doors between rooms. Doors that lead
+    // outside are entered but the grass beyond isn't, so the loop stays inside the mansion.
+    while (q.length) {
+      const c = q.shift();
+      for (const nd of CARD) {
+        const nx = c.x + nd.dx, ny = c.y + nd.dy, nk = K(nx, ny);
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows || seen.has(nk)) continue;
+        const door = LS.los.isDoor(nx, ny);
+        const interior = LS.los.tileChar(nx, ny) === '_';
+        if (!door && !interior) continue;          // confine the patrol to the building's rooms
+        seen.add(nk); q.push({ x: nx, y: ny });
+        if (interior) floor.push({ x: nx, y: ny }); // a room tile we could patrol to
       }
-      if (len >= 2 && (!best || len > best.len)) best = { dx, dy, len, out: true };
     }
-    return best;
-  }
-  function beatStep(u, post) { // walk a few tiles toward the current end of the beat; reverse at the ends
-    if (u.beat === undefined) u.beat = computeBeat(post) || null;
-    if (!u.beat) return null;
-    const b = u.beat;
-    const target = b.out ? { x: post.x + b.dx * b.len, y: post.y + b.dy * b.len } : { x: post.x, y: post.y };
-    if (LS.los.dist(u.x, u.y, target.x, target.y) <= 1) { b.out = !b.out; return null; } // arrived — pause and scan
-    const reach = LS.game.computeReachable(u), path = LS.game.pathTo(reach, target.x, target.y);
-    if (path && path.length >= 2) return path[Math.min(3, path.length - 1)];
-    return stepToward(u, target);
+    const route = [{ x: post.x, y: post.y }];
+    for (let n = 0; n < 3 && floor.length; n++) { // pick up to 3 maximally-spread waypoints
+      let best = null, bestMin = -1;
+      for (const t of floor) {
+        let md = Infinity;
+        for (const r of route) md = Math.min(md, LS.los.dist(t.x, t.y, r.x, r.y));
+        if (md > bestMin) { bestMin = md; best = t; }
+      }
+      if (!best || bestMin < 4) break; // nothing meaningfully far left to visit
+      route.push(best);
+    }
+    u.route = route.length >= 2 ? route : null;
+    u.routeIdx = 1;
+    return u.route;
   }
   function patrolDecision(u) {
-    if (u._pacedTurn === LS.state.turnCount) return { type: 'end' }; // already had a patrol action this turn
-    u._pacedTurn = LS.state.turnCount;
     const post = u.post || { x: u.x, y: u.y };
-    if (u.patrol) {
-      const dest = beatStep(u, post);
-      if (dest && (dest.x !== u.x || dest.y !== u.y)) return { type: 'move', dest, reason: 'patrol' };
-    } else if (LS.util.randInt(1, 100) <= 35) { // a stationary guard occasionally shifts his weight
-      const dest = shuffleStep(u, post);
-      if (dest) return { type: 'move', dest, reason: 'patrol' };
+    if (u.patrol) { // a patroller: walk the building loop, opening doors as it goes
+      const route = patrolRoute(u);
+      if (route) {
+        if (u.routeIdx === undefined) u.routeIdx = 1;
+        const wp = route[u.routeIdx % route.length];
+        if (LS.los.dist(u.x, u.y, wp.x, wp.y) <= 1) { u.routeIdx = (u.routeIdx + 1) % route.length; return { type: 'face', dir: scanDir(u) }; }
+        const act = navStep(u, wp, 'patrol'); // no one-action cap — let it cross rooms and open doors this turn
+        if (act && act.type !== 'end') return act;
+      }
+      return { type: 'face', dir: scanDir(u) };
     }
-    return { type: 'face', dir: scanDir(u) }; // otherwise just look around (costs no AP, ends the go)
+    // a stationary guard: one small action per turn, so it reads as holding station, not fidgeting
+    if (u._pacedTurn === LS.state.turnCount) return { type: 'end' };
+    u._pacedTurn = LS.state.turnCount;
+    if (LS.util.randInt(1, 100) <= 35) { const dest = shuffleStep(u, post); if (dest) return { type: 'move', dest, reason: 'patrol' }; }
+    return { type: 'face', dir: scanDir(u) };
   }
 
   // one action: big grenade > break contact when hurt > shoot > grenade a target we can't shoot >
