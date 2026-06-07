@@ -30,10 +30,8 @@ LS.ui = (function () {
   }
   function update() {
     const s = LS.state;
-    // turn banner
-    const banner = document.getElementById('turn-banner');
-    banner.textContent = s.over ? 'GAME OVER' : `${teamLabel(s.activeTeam)} turn`;
-    banner.className = 'turn-banner ' + (s.over ? 'over' : s.activeTeam);
+    // (the persistent turn banner was removed — turn changes are signalled by the transition sweep,
+    //  the feed's "— RED turn —" line, and the squad panel; game-over by the victory overlay.)
     // the per-team roster headers are static "BLUE"/"RED" placeholders in index.html — relabel them here
     const rl = document.querySelector('.roster-label.blue'); if (rl) rl.textContent = teamLabel('blue');
     const rr = document.querySelector('.roster-label.red'); if (rr) rr.textContent = teamLabel('red');

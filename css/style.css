@@ -57,16 +57,6 @@ body::after {
 
 .board-wrap { display: flex; flex-direction: column; gap: 10px; }
 
-.turn-banner {
-  align-self: flex-start;
-  font-weight: 700; letter-spacing: 2px; font-size: 12px; text-transform: uppercase;
-  padding: 6px 12px; border: 1px solid var(--line); border-radius: 2px;
-}
-.turn-banner::before { content: "» "; }
-.turn-banner.blue { background: rgba(242,194,30,0.1); color: var(--blue); border-color: rgba(242,194,30,0.45); }
-.turn-banner.red  { background: rgba(255,99,89,0.1); color: var(--red); border-color: rgba(255,99,89,0.45); }
-.turn-banner.over { background: rgba(255,209,102,0.12); color: var(--gold); border-color: rgba(255,209,102,0.5); }
-
 .board-frame {
   position: relative;
   border: 1px solid var(--line); border-radius: 2px; overflow: hidden;
@@ -75,7 +65,9 @@ body::after {
 }
 #board {
   display: block;
-  width: min(68vw, 1160px);
+  /* cap by width AND by the viewport height (board is 22:15, so height-budget * 22/15 is the
+     widest it can be and still fit vertically) so it never drops off the bottom of the screen */
+  width: min(68vw, 1160px, calc((100vh - 120px) * 22 / 15));
   height: auto;
   background: #0a0c08;
   cursor: pointer;
