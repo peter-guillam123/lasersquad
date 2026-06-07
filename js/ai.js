@@ -203,6 +203,38 @@ LS.ai = (function () {
     });
     return opts.length ? opts[LS.util.randInt(0, opts.length - 1)] : null;
   }
+  function nearestWindow(x, y, r) { // a window within r tiles, to glance out of
+    let best = null, bestD = r + 1;
+    for (let yy = y - r; yy <= y + r; yy++) for (let xx = x - r; xx <= x + r; xx++) {
+      if (xx < 0 || yy < 0 || xx >= cfg().cols || yy >= cfg().rows || !LS.los.isWindow(xx, yy)) continue;
+      const d = LS.los.dist(x, y, xx, yy); if (d < bestD) { bestD = d; best = { x: xx, y: yy }; }
+    }
+    return best;
+  }
+  function roamTile(u, anchor, r) { // a reachable tile a couple of steps off, within r of the anchor (a short stroll)
+    const reach = LS.game.computeReachable(u), cols = cfg().cols, opts = [];
+    reach.cost.forEach((ap, k) => {
+      const x = k % cols, y = Math.floor(k / cols);
+      if (Math.max(Math.abs(x - anchor.x), Math.abs(y - anchor.y)) > r) return;
+      if (LS.los.dist(x, y, u.x, u.y) < 2) return;
+      opts.push({ x, y });
+    });
+    return opts.length ? opts[LS.util.randInt(0, opts.length - 1)] : null;
+  }
+  // a guard holding station around an anchor: ONE behaviour a turn from a small grab-bag — look out
+  // a nearby window, take a short stroll around the spot, shift a tile, or just scan the arc. Used by
+  // calm stationary guards (anchored to their post) and by a searcher guarding a cold trail.
+  function guardIdle(u, anchor, reason) {
+    if (u._pacedTurn === LS.state.turnCount) return { type: 'end' };
+    u._pacedTurn = LS.state.turnCount;
+    reason = reason || 'patrol';
+    const roll = LS.util.randInt(1, 100);
+    const win = nearestWindow(u.x, u.y, 3);
+    if (win && roll <= 28) return { type: 'face', dir: LS.util.dirIndex(win.x - u.x, win.y - u.y), look: 'window' };
+    if (roll <= 58) { const dest = roamTile(u, anchor, 3); if (dest) return { type: 'move', dest, reason }; }
+    if (roll <= 76) { const dest = shuffleStep(u, anchor); if (dest) return { type: 'move', dest, reason }; }
+    return { type: 'face', dir: scanDir(u), look: 'scan' };
+  }
   // a patroller's loop: a handful of spread-out waypoints across the door-connected building,
   // computed once by flooding the rooms from the post (doors count as passable) and then
   // farthest-point sampling. The patroller navigates door-aware between them, opening doors, and
@@ -244,22 +276,20 @@ LS.ai = (function () {
   }
   function patrolDecision(u) {
     const post = u.post || { x: u.x, y: u.y };
-    if (u.patrol) { // a patroller: walk the building loop, opening doors as it goes
+    if (u.patrol) { // a patroller: walk the building loop, opening doors and checking windows en route
+      const win = nearestWindow(u.x, u.y, 2); // glance out a window it's passing on the round
+      if (win && LS.util.randInt(1, 100) <= 22) return { type: 'face', dir: LS.util.dirIndex(win.x - u.x, win.y - u.y), look: 'window' };
       const route = patrolRoute(u);
       if (route) {
         if (u.routeIdx === undefined) u.routeIdx = 1;
         const wp = route[u.routeIdx % route.length];
-        if (LS.los.dist(u.x, u.y, wp.x, wp.y) <= 1) { u.routeIdx = (u.routeIdx + 1) % route.length; return { type: 'face', dir: scanDir(u) }; }
+        if (LS.los.dist(u.x, u.y, wp.x, wp.y) <= 1) { u.routeIdx = (u.routeIdx + 1) % route.length; return { type: 'face', dir: scanDir(u), look: 'scan' }; }
         const act = navStep(u, wp, 'patrol'); // no one-action cap — let it cross rooms and open doors this turn
         if (act && act.type !== 'end') return act;
       }
-      return { type: 'face', dir: scanDir(u) };
+      return { type: 'face', dir: scanDir(u), look: 'scan' };
     }
-    // a stationary guard: one small action per turn, so it reads as holding station, not fidgeting
-    if (u._pacedTurn === LS.state.turnCount) return { type: 'end' };
-    u._pacedTurn = LS.state.turnCount;
-    if (LS.util.randInt(1, 100) <= 35) { const dest = shuffleStep(u, post); if (dest) return { type: 'move', dest, reason: 'patrol' }; }
-    return { type: 'face', dir: scanDir(u) };
+    return guardIdle(u, post); // a stationary guard: hold station with the idle repertoire
   }
 
   // one action: big grenade > break contact when hurt > shoot > grenade a target we can't shoot >
@@ -306,10 +336,12 @@ LS.ai = (function () {
       case 'throw':       return { text: 'grenade out', color: '#ff9a3c' };
       case 'shootWindow': return { text: 'clearing a window', color: '#5fbcc6' };
       case 'openDoor':    return { text: 'opening a door', color: '#c8a23c' };
-      case 'face':        return { text: 'scanning', color: '#9a946f' };
+      case 'face':        return { text: action.look === 'window' ? 'watching a window' : 'scanning', color: '#9a946f' };
       case 'move':
         if (action.reason === 'retreat') return { text: 'falling back', color: '#5fbcc6' };
         if (action.reason === 'hunt')    return { text: 'closing on last sighting', color: '#e6ad33' };
+        if (action.reason === 'search')  return { text: 'searching the area', color: '#e6ad33' };
+        if (action.reason === 'return')  return { text: 'back to post', color: '#9a946f' };
         if (action.reason === 'patrol')  return { text: 'on patrol', color: '#9a946f' };
         return { text: 'advancing', color: '#e6ad33' };
       default: // 'end' / hold

@@ -174,10 +174,12 @@ LS.game = (function () {
   const ALERT_COOLDOWN = 2;        // red turns of no contact before a non-latched alert relaxes
   function alertInfo(team) { return LS.state.alert[team]; }
   function alertLevel(team) { return (LS.state.alert[team] || {}).level || 'calm'; }
-  // the map carved into six named sectors (W/C/E × N/S), for the "sector 2" callout
+  // the map carved into six named sectors (W/C/E × N/S), for the "sector 2" callout.
+  // derived from the map's dimensions, so it works unchanged on any size of map.
   function sector(x, y) {
-    const col = x < 15 ? 0 : x < 30 ? 1 : 2;
-    const row = y < 16 ? 0 : 1;
+    const cols = LS.config.cols, rows = LS.config.rows;
+    const col = x < cols / 3 ? 0 : x < 2 * cols / 3 ? 1 : 2;
+    const row = y < rows / 2 ? 0 : 1;
     return row * 3 + col + 1; // 1..6
   }
   // red guards that can right now see one of the player's soldiers (and who they see)
