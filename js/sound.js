@@ -44,10 +44,28 @@ LS.sound = (function () {
       tone({ freq: stepFlip ? 98 : 80, freqEnd: 52, type: 'sine', dur: 0.07, vol: 0.05 });
       noise({ dur: 0.025, vol: 0.018 });
     }
-    else if (kind === 'fire') tone({ freq: 720, freqEnd: 170, type: 'square', dur: 0.14, vol: 0.06 });
+    else if (kind === 'fire' || kind === 'fire_pistol') tone({ freq: 720, freqEnd: 170, type: 'square', dur: 0.14, vol: 0.06 }); // dry slug
+    else if (kind === 'fire_laser') { // a clean high beam
+      tone({ freq: 1500, freqEnd: 560, type: 'sine', dur: 0.17, vol: 0.05 });
+      tone({ freq: 2300, freqEnd: 1100, type: 'triangle', dur: 0.09, vol: 0.022 });
+    }
+    else if (kind === 'fire_plasma') { // a heavy low blast with a crackle
+      noise({ dur: 0.13, vol: 0.05 });
+      tone({ freq: 300, freqEnd: 70, type: 'sawtooth', dur: 0.30, vol: 0.11 });
+      tone({ freq: 620, freqEnd: 150, type: 'square', dur: 0.12, vol: 0.04 });
+    }
     else if (kind === 'hit') { tone({ freq: 165, freqEnd: 60, type: 'sine', dur: 0.16, vol: 0.12 }); noise({ dur: 0.07, vol: 0.05 }); }
     else if (kind === 'miss') tone({ freq: 1150, freqEnd: 700, type: 'sine', dur: 0.07, vol: 0.04 });
     else if (kind === 'down') tone({ freq: 260, freqEnd: 70, type: 'sawtooth', dur: 0.42, vol: 0.1 });
+    else if (kind === 'hurt') { // a short pained yelp when a soldier takes a hit
+      tone({ freq: 400, freqEnd: 250, type: 'sawtooth', dur: 0.13, vol: 0.09 });
+      noise({ dur: 0.05, vol: 0.022 });
+    }
+    else if (kind === 'death') { // a falling death cry — stylised (synth, no voice files)
+      tone({ freq: 560, freqEnd: 110, type: 'sawtooth', dur: 0.5, vol: 0.12 });
+      tone({ freq: 800, freqEnd: 180, type: 'square', dur: 0.4, vol: 0.035, delay: 0.05 });
+      noise({ dur: 0.12, vol: 0.028 });
+    }
     else if (kind === 'door') { tone({ freq: 120, freqEnd: 80, type: 'triangle', dur: 0.18, vol: 0.09 }); noise({ dur: 0.05, vol: 0.03 }); }
     else if (kind === 'glass') { noise({ dur: 0.18, vol: 0.07 }); tone({ freq: 2400, freqEnd: 1400, type: 'triangle', dur: 0.12, vol: 0.04 }); }
     else if (kind === 'throw') tone({ freq: 520, freqEnd: 900, type: 'sine', dur: 0.18, vol: 0.04 });
@@ -67,6 +85,9 @@ LS.sound = (function () {
       noise({ dur: 0.13, vol: 0.05 });
       tone({ freq: 920, type: 'square', dur: 0.045, vol: 0.035, delay: 0.02 });
       tone({ freq: 660, type: 'square', dur: 0.05, vol: 0.03, delay: 0.10 });
+    }
+    else if (kind === 'alarm') { // a two-tone klaxon wail — full combat alert
+      for (let i = 0; i < 4; i++) tone({ freq: i % 2 ? 560 : 760, type: 'square', dur: 0.17, vol: 0.07, delay: i * 0.19 });
     }
   }
 

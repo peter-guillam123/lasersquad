@@ -186,14 +186,17 @@ LS.weapons = {
   pistol: {
     id: 'pistol', name: 'Pistol', dmgMin: 2, dmgMax: 5, range: 8, clip: 12, weight: 4, cost: 8,
     modes: { snap: { ap: 4, acc: 0.74 }, aimed: { ap: 7, acc: 0.90 } },
+    shot: { sound: 'fire_pistol', color: '#ffe08a', width: 3, dur: 170 },          // a quick amber slug
   },
   laser: {
     id: 'laser', name: 'Laser Rifle', dmgMin: 3, dmgMax: 6, range: 12, clip: 10, weight: 8, cost: 20,
     modes: { snap: { ap: 6, acc: 0.74 }, aimed: { ap: 10, acc: 0.95 } },
+    shot: { sound: 'fire_laser', color: '#9fe8ff', width: 2, dur: 150 },            // a thin, fast cyan beam
   },
   plasma: {
     id: 'plasma', name: 'Heavy Plasma', dmgMin: 5, dmgMax: 9, range: 14, clip: 6, weight: 14, cost: 45,
     modes: { snap: { ap: 8, acc: 0.64 }, aimed: { ap: 14, acc: 0.92 } },
+    shot: { sound: 'fire_plasma', color: '#ff8be0', width: 5, dur: 250, glow: true }, // a fat, slow magenta bolt
   },
 };
 LS.config.defaultWeapon = 'laser'; // a unit with no weapon assigned falls back to this

@@ -144,13 +144,14 @@ LS.render = (function () {
       clearTimeout(alertBannerTimer);
       alertBannerTimer = setTimeout(() => banner.classList.remove('show'), anomaly ? 3000 : 3600);
     }
-    LS.sound.play('radio');
     if (anomaly) {
+      LS.sound.play('radio'); // a quiet comms click — just a lone guard checking it out
       LS.sound.speak(`Anomaly spotted. Sector ${word}. Investigating.`);
       LS.game.log(`◆ A guard is investigating something in sector ${sec}.`);
     } else {
-      LS.sound.speak(`Intruder spotted. Sector ${word}. Alert status.`);
-      LS.game.log(`⚠ Red squad alerted — intruder in sector ${sec}.`);
+      LS.sound.play('alarm'); // a klaxon — the whole squad to full combat alert
+      LS.sound.speak(`Contact! Intruder in sector ${word}. All units, engage.`);
+      LS.game.log(`⚠ Red squad on full alert — intruder in sector ${sec}.`);
     }
   }
 
@@ -900,7 +901,8 @@ LS.render = (function () {
 
   // --- shot feedback: muzzle flash, travelling bolt, impact, floating damage/miss ---
   function shotFx(shooter, target, result, done) {
-    LS.sound.play('fire');
+    const shot = (LS.game.weaponOf(shooter) || {}).shot || { sound: 'fire', color: '#ffe08a', width: 3, dur: 190 };
+    LS.sound.play(result.glass ? 'fire' : shot.sound);
     if (!LS.config.anim.enabled) { done && done(); return; }
     const sa = unitEls[shooter.id] && unitEls[shooter.id].action;
     if (sa) { const f = LS.DIRS[shooter.facing]; recoil(sa, f.dx, f.dy); }
@@ -917,17 +919,20 @@ LS.render = (function () {
       ex = missHit.x; ey = missHit.y;
     }
 
-    fade(el('circle', { cx: sx, cy: sy, r: T * 0.16, fill: '#ffe9a8', opacity: 0.95 }, layers.fx), 180);
+    fade(el('circle', { cx: sx, cy: sy, r: T * (shot.glow ? 0.22 : 0.16), fill: shot.color, opacity: 0.92 }, layers.fx), 180);
 
-    const bolt = el('line', { x1: sx, y1: sy, x2: sx, y2: sy, stroke: '#ffe08a', 'stroke-width': 3, 'stroke-linecap': 'round' }, layers.fx);
-    const dur = 190; let start = null;
+    // a heavy bolt gets a faint wider glow behind the core line
+    const glow = shot.glow ? el('line', { x1: sx, y1: sy, x2: sx, y2: sy, stroke: shot.color, 'stroke-width': shot.width * 2.6, 'stroke-linecap': 'round', opacity: 0.3 }, layers.fx) : null;
+    const bolt = el('line', { x1: sx, y1: sy, x2: sx, y2: sy, stroke: shot.color, 'stroke-width': shot.width, 'stroke-linecap': 'round' }, layers.fx);
+    const dur = shot.dur || 190; let start = null;
     function fly(ts) {
       if (start === null) start = ts;
       let p = (ts - start) / dur; if (p > 1) p = 1;
       const tailP = Math.max(0, p - 0.25);
-      bolt.setAttribute('x1', sx + (ex - sx) * tailP); bolt.setAttribute('y1', sy + (ey - sy) * tailP);
-      bolt.setAttribute('x2', sx + (ex - sx) * p); bolt.setAttribute('y2', sy + (ey - sy) * p);
-      if (p < 1) requestAnimationFrame(fly); else { bolt.remove(); impact(); }
+      const x1 = sx + (ex - sx) * tailP, y1 = sy + (ey - sy) * tailP, x2 = sx + (ex - sx) * p, y2 = sy + (ey - sy) * p;
+      bolt.setAttribute('x1', x1); bolt.setAttribute('y1', y1); bolt.setAttribute('x2', x2); bolt.setAttribute('y2', y2);
+      if (glow) { glow.setAttribute('x1', x1); glow.setAttribute('y1', y1); glow.setAttribute('x2', x2); glow.setAttribute('y2', y2); }
+      if (p < 1) requestAnimationFrame(fly); else { bolt.remove(); if (glow) glow.remove(); impact(); }
     }
     requestAnimationFrame(fly);
 
@@ -935,6 +940,7 @@ LS.render = (function () {
       if (result.glass) { LS.sound.play('glass'); glassBurst(tcx, tcy); setTimeout(() => done && done(), 160); return; }
       if (result.hit) {
         LS.sound.play(result.killed ? 'down' : 'hit');
+        LS.sound.play(result.killed ? 'death' : 'hurt'); // the soldier's yelp / death cry
         expand(el('circle', { cx: tcx, cy: tcy, r: T * 0.1, fill: 'none', stroke: C.target, 'stroke-width': 3 }, layers.fx), T * 0.5, 280);
         floatText(`-${result.dmg}`, tcx, tcy - T * 0.2, C.target);
         if (result.killed) floatText('DOWN', tcx, tcy - T * 0.5, C.select, 1000);
