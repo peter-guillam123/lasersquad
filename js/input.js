@@ -93,8 +93,17 @@ LS.input = (function () {
       // closing is done with the ✕ badge (handled in onClick).
       if (LS.los.isDoor(tx, ty) && !LS.los.doorOpen(tx, ty)) {
         const r = LS.game.toggleDoor(sel, tx, ty);
-        if (r.ok) LS.sound.play('door'); else if (r.reason) LS.game.log(r.reason);
-        LS.render.draw();
+        if (!r.ok) { if (r.reason) LS.game.log(r.reason); LS.render.draw(); return; }
+        LS.sound.play('door');
+        const reactors = LS.game.findReactors(sel); // opening the door may have exposed you — overwatchers fire
+        if (reactors.length) {
+          LS.state.busy = true; LS.render.draw(); LS.ui.update();
+          resolveReactions(sel, reactors, () => {
+            LS.state.busy = false;
+            const s = LS.game.selected(); if (s && !s.alive) LS.game.selectUnit(null);
+            LS.render.draw();
+          });
+        } else LS.render.draw();
         return;
       }
       // intact windows: smash at melee range, or break with a shot from range

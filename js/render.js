@@ -833,11 +833,11 @@ LS.render = (function () {
 
     // door / window action hints. A closed door shows 'open'; an open door falls through to the
     // step-in cost (you walk into it), and closing is the ✕ badge, handled separately.
-    if (LS.los.isDoor(tx, ty) && !LS.los.doorOpen(tx, ty) && Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1 && sel.ap >= LS.config.ap.door) {
+    if (LS.los.isDoor(tx, ty) && !LS.los.doorOpen(tx, ty) && Math.max(Math.abs(sel.x - tx), Math.abs(sel.y - ty)) === 1 && sel.ap >= LS.config.ap.door) {
       label('open', tx * T + T / 2, ty * T - 6, C.select, T); return;
     }
     if (LS.los.isWindow(tx, ty) && !LS.los.windowSmashed(tx, ty)) {
-      const adj = Math.abs(sel.x - tx) + Math.abs(sel.y - ty) === 1;
+      const adj = Math.max(Math.abs(sel.x - tx), Math.abs(sel.y - ty)) === 1;
       if (adj && sel.ap >= LS.config.ap.door) { label('smash', tx * T + T / 2, ty * T - 6, C.select, T); return; }
       if (!adj && LS.game.canFire(sel, tx, ty) && sel.ap >= LS.game.fireAP(sel, 'snap')) { label('shoot glass', tx * T + T / 2, ty * T - 6, C.target, T); return; }
     }
@@ -939,8 +939,8 @@ LS.render = (function () {
     function impact() {
       if (result.glass) { LS.sound.play('glass'); glassBurst(tcx, tcy); setTimeout(() => done && done(), 160); return; }
       if (result.hit) {
-        LS.sound.play(result.killed ? 'down' : 'hit');
-        LS.sound.play(result.killed ? 'death' : 'hurt'); // the soldier's yelp / death cry
+        if (result.killed) { LS.sound.play('death'); }        // the death cry carries the kill (no muddy thud over it)
+        else { LS.sound.play('hit'); LS.sound.play('hurt'); } // impact crack + a pained yelp
         expand(el('circle', { cx: tcx, cy: tcy, r: T * 0.1, fill: 'none', stroke: C.target, 'stroke-width': 3 }, layers.fx), T * 0.5, 280);
         floatText(`-${result.dmg}`, tcx, tcy - T * 0.2, C.target);
         if (result.killed) floatText('DOWN', tcx, tcy - T * 0.5, C.select, 1000);

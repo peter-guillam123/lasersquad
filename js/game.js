@@ -314,7 +314,8 @@ LS.game = (function () {
   }
 
   // --- breachable barriers: doors and windows --------------------------------
-  const orthAdjacent = (u, x, y) => Math.abs(u.x - x) + Math.abs(u.y - y) === 1;
+  // adjacent including diagonals (Chebyshev 1) — you can work a door/window from a corner tile too
+  const orthAdjacent = (u, x, y) => Math.max(Math.abs(u.x - x), Math.abs(u.y - y)) === 1;
 
   function toggleDoor(unit, x, y) {
     if (!LS.los.isDoor(x, y)) return { ok: false };

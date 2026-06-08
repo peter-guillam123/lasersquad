@@ -170,7 +170,7 @@ LS.ai = (function () {
     }
     if (di !== -1) {
       const door = path[di];
-      if (Math.abs(u.x - door.x) + Math.abs(u.y - door.y) === 1) { // standing next to it — open it
+      if (Math.max(Math.abs(u.x - door.x), Math.abs(u.y - door.y)) === 1) { // adjacent (incl. diagonal) — open it
         return u.ap >= cfg().ap.door ? { type: 'openDoor', at: door } : { type: 'end' };
       }
       const approach = path[di - 1]; // the open tile just before the door
@@ -496,20 +496,27 @@ LS.ai = (function () {
   function aiOpenDoor(unit, at, done) {
     const res = LS.game.toggleDoor(unit, at.x, at.y);
     if (!res.ok) return done();
+    // opening the door may have exposed the opener — the player's overwatchers get a reaction shot
+    const reacts = () => {
+      const reactors = LS.game.findReactors(unit);
+      if (!reactors.length) return done();
+      LS.render.reveal(unit.id); LS.render.draw();
+      resolveReactions(unit, reactors, () => { LS.render.unreveal(unit.id); LS.render.draw(); done(); });
+    };
     if (seenByHuman(unit.x, unit.y) || seenByHuman(at.x, at.y) || watching()) { // we can see it — reveal & show
       LS.sound.play('door');
       LS.render.reveal(unit.id);
       LS.render.focusTile(unit.x, unit.y, () => {
         LS.render.draw();
-        delay(240, () => { LS.render.unreveal(unit.id); LS.render.draw(); done(); });
+        delay(240, () => { LS.render.unreveal(unit.id); LS.render.draw(); reacts(); });
       });
     } else if (audible(at.x, at.y)) { // out of sight but within earshot — pan near it and let you hear it
       LS.render.draw();
       LS.sound.play('door');
-      tourTo(at.x, at.y, false, done);
+      tourTo(at.x, at.y, false, reacts);
     } else {
       LS.render.draw();
-      done(); // too far to hear — resolve quietly
+      reacts(); // too far to hear — resolve quietly (but a watching soldier may still react)
     }
   }
 

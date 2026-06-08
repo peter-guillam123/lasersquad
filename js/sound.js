@@ -58,13 +58,13 @@ LS.sound = (function () {
     else if (kind === 'miss') tone({ freq: 1150, freqEnd: 700, type: 'sine', dur: 0.07, vol: 0.04 });
     else if (kind === 'down') tone({ freq: 260, freqEnd: 70, type: 'sawtooth', dur: 0.42, vol: 0.1 });
     else if (kind === 'hurt') { // a short pained yelp when a soldier takes a hit
-      tone({ freq: 400, freqEnd: 250, type: 'sawtooth', dur: 0.13, vol: 0.09 });
-      noise({ dur: 0.05, vol: 0.022 });
+      tone({ freq: 430, freqEnd: 270, type: 'sawtooth', dur: 0.16, vol: 0.16 });
+      tone({ freq: 900, freqEnd: 560, type: 'square', dur: 0.08, vol: 0.05 }); // a vocal-ish overtone
     }
     else if (kind === 'death') { // a falling death cry — stylised (synth, no voice files)
-      tone({ freq: 560, freqEnd: 110, type: 'sawtooth', dur: 0.5, vol: 0.12 });
-      tone({ freq: 800, freqEnd: 180, type: 'square', dur: 0.4, vol: 0.035, delay: 0.05 });
-      noise({ dur: 0.12, vol: 0.028 });
+      tone({ freq: 640, freqEnd: 130, type: 'sawtooth', dur: 0.6, vol: 0.20 });
+      tone({ freq: 980, freqEnd: 210, type: 'square', dur: 0.5, vol: 0.07, delay: 0.05 });
+      tone({ freq: 1500, freqEnd: 420, type: 'triangle', dur: 0.3, vol: 0.03, delay: 0.02 });
     }
     else if (kind === 'door') { tone({ freq: 120, freqEnd: 80, type: 'triangle', dur: 0.18, vol: 0.09 }); noise({ dur: 0.05, vol: 0.03 }); }
     else if (kind === 'glass') { noise({ dur: 0.18, vol: 0.07 }); tone({ freq: 2400, freqEnd: 1400, type: 'triangle', dur: 0.12, vol: 0.04 }); }
