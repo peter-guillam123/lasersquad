@@ -592,6 +592,42 @@ LS.render = (function () {
     el('circle', { cx: -L * 0.06, cy: T * 0.03, r: T * 0.062, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);      // rear hand (trigger)
     el('circle', { cx: L * 0.16, cy: 0, r: T * 0.062, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);             // front hand (foregrip)
   }
+  // a small sidearm: short body, stubby barrel, a single hand. Compact silhouette so it reads as light.
+  function mPistol(g, T, t, ox, oy, rot) {
+    const q = el('g', { transform: `translate(${ox},${oy}) rotate(${rot || 0})` }, g);
+    el('rect', { x: -T * 0.05, y: -T * 0.05, width: T * 0.17, height: T * 0.11, rx: 2, fill: SPRITE.d }, q);          // slide/body
+    el('rect', { x: -T * 0.05, y: -T * 0.05, width: T * 0.17, height: T * 0.035, rx: 2, fill: SPRITE.m, opacity: 0.7 }, q); // top sheen (light from top)
+    el('rect', { x: T * 0.10, y: -T * 0.018, width: T * 0.12, height: T * 0.045, rx: 1.5, fill: SPRITE.d }, q);       // short barrel
+    el('rect', { x: T * 0.19, y: -T * 0.028, width: T * 0.035, height: T * 0.056, rx: 1, fill: SPRITE.hi }, q);       // muzzle
+    el('rect', { x: 0, y: T * 0.03, width: T * 0.055, height: T * 0.10, rx: 1.5, fill: SPRITE.d, transform: `rotate(10 0 ${T * 0.03})` }, q); // grip
+    el('circle', { cx: T * 0.03, cy: T * 0.012, r: T * 0.062, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);    // single hand
+  }
+  // heavy plasma: a big bulky weapon fed by a glowing back-mounted power pack and a thick cable.
+  function mPlasma(g, T, t, ox, oy, rot) {
+    const rad = (rot || 0) * Math.PI / 180, cx = Math.cos(rad), cy = Math.sin(rad);
+    const px = ox - cx * T * 0.22, py = oy - cy * T * 0.22; // pack rides on the body, behind the weapon
+    el('path', { d: `M${ox - cx * T * 0.04} ${oy - cy * T * 0.04} Q ${px - cx * T * 0.05} ${py - T * 0.05} ${px} ${py}`, fill: 'none', stroke: SPRITE.d, 'stroke-width': T * 0.045, 'stroke-linecap': 'round', opacity: 0.9 }, g); // feed cable
+    el('rect', { x: px - T * 0.12, y: py - T * 0.12, width: T * 0.24, height: T * 0.24, rx: T * 0.05, fill: SPRITE.d }, g);            // power pack
+    el('rect', { x: px - T * 0.12, y: py - T * 0.12, width: T * 0.24, height: T * 0.07, rx: T * 0.05, fill: SPRITE.m, opacity: 0.6 }, g); // top sheen
+    el('circle', { cx: px, cy: py + T * 0.01, r: T * 0.095, fill: 'none', stroke: SPRITE.glow, 'stroke-width': 1.5, opacity: 0.4 }, g);  // halo
+    el('circle', { cx: px, cy: py + T * 0.01, r: T * 0.055, fill: SPRITE.glow, opacity: 0.9 }, g);                                       // core glow
+    const q = el('g', { transform: `translate(${ox},${oy}) rotate(${rot || 0})` }, g);
+    const L = T * 0.62;
+    el('rect', { x: -L * 0.30, y: -T * 0.11, width: L * 0.48, height: T * 0.22, rx: 3, fill: SPRITE.d }, q);          // bulky receiver
+    el('rect', { x: -L * 0.30, y: -T * 0.11, width: L * 0.48, height: T * 0.07, rx: 3, fill: SPRITE.m, opacity: 0.7 }, q);
+    el('rect', { x: L * 0.16, y: -T * 0.06, width: L * 0.58, height: T * 0.12, rx: 3, fill: SPRITE.d }, q);           // fat barrel
+    el('rect', { x: L * 0.16, y: -T * 0.06, width: L * 0.58, height: T * 0.04, rx: 3, fill: SPRITE.m, opacity: 0.55 }, q);
+    el('circle', { cx: L * 0.76, cy: 0, r: T * 0.092, fill: SPRITE.m }, q);                                           // emitter housing
+    el('circle', { cx: L * 0.76, cy: 0, r: T * 0.05, fill: SPRITE.glow, opacity: 0.95 }, q);                          // glowing muzzle
+    el('circle', { cx: -L * 0.04, cy: T * 0.05, r: T * 0.07, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);     // rear hand
+    el('circle', { cx: L * 0.18, cy: 0, r: T * 0.07, fill: t.sh, stroke: t.dk, 'stroke-width': 1.5 }, q);             // front hand
+  }
+  // pick the held weapon by kind (laser = the default rifle)
+  function mWeapon(g, T, t, ox, oy, L, rot, kind) {
+    if (kind === 'pistol') return mPistol(g, T, t, ox, oy, rot);
+    if (kind === 'plasma') return mPlasma(g, T, t, ox, oy, rot);
+    return mGun(g, T, t, ox, oy, L, rot);
+  }
   function mHelmet(g, T, t, x, y, r, back) {
     el('ellipse', { cx: x, cy: y, rx: r, ry: r * 0.95, fill: t.base, stroke: t.dk, 'stroke-width': 2 }, g);
     el('path', { d: `M${x - r * 0.78} ${y - r * 0.2} a${r * 0.9} ${r * 0.85} 0 0 1 ${r * 1.56} 0 Z`, fill: t.lt, opacity: 0.6 }, g); // top highlight (always north)
@@ -621,48 +657,62 @@ LS.render = (function () {
       mRivet(g, T, t, -w * 0.31, cy - h * 0.18); mRivet(g, T, t, w * 0.32, cy - h * 0.16); mRivet(g, T, t, -w * 0.29, cy + h * 0.24);
     }
   }
-  function mBackpack(g, T) {
-    el('rect', { x: -T * 0.15, y: -T * 0.13, width: T * 0.30, height: T * 0.28, rx: T * 0.05, fill: SPRITE.d }, g);
-    el('rect', { x: -T * 0.15, y: -T * 0.13, width: T * 0.30, height: T * 0.08, rx: T * 0.05, fill: SPRITE.m, opacity: 0.55 }, g);
-    el('rect', { x: -T * 0.10, y: -T * 0.005, width: T * 0.20, height: T * 0.08, rx: 2, fill: SPRITE.glow, opacity: 0.55 }, g);
+  function mBackpack(g, T, kind) {
+    const plasma = kind === 'plasma';                     // the heavy gun's power unit reads big from behind
+    const w = plasma ? T * 0.36 : T * 0.30, h = plasma ? T * 0.32 : T * 0.28;
+    el('rect', { x: -w / 2, y: -T * 0.13, width: w, height: h, rx: T * 0.05, fill: SPRITE.d }, g);
+    el('rect', { x: -w / 2, y: -T * 0.13, width: w, height: T * 0.08, rx: T * 0.05, fill: SPRITE.m, opacity: 0.55 }, g);
+    if (plasma) {
+      el('circle', { cx: 0, cy: T * 0.02, r: T * 0.12, fill: 'none', stroke: SPRITE.glow, 'stroke-width': 1.5, opacity: 0.4 }, g);
+      el('circle', { cx: 0, cy: T * 0.02, r: T * 0.075, fill: SPRITE.glow, opacity: 0.85 }, g);
+    } else {
+      el('rect', { x: -T * 0.10, y: -T * 0.005, width: T * 0.20, height: T * 0.08, rx: 2, fill: SPRITE.glow, opacity: 0.55 }, g);
+    }
+  }
+  // a weapon slung over the shoulder in the back-facing poses — fatter for plasma, holstered (hidden) for the pistol
+  function mSlung(g, T, kind) {
+    if (kind === 'pistol') return;
+    const fat = kind === 'plasma', len = fat ? T * 0.40 : T * 0.34, h = fat ? T * 0.085 : T * 0.055;
+    const piv = `rotate(-38 ${T * 0.1} ${-T * 0.04})`;
+    el('rect', { x: T * 0.1, y: -T * 0.06 - (fat ? T * 0.015 : 0), width: len, height: h, rx: 2, fill: SPRITE.d, transform: piv }, g);
+    el('rect', { x: T * 0.1 + len, y: -T * 0.075, width: T * 0.07, height: fat ? T * 0.07 : T * 0.05, rx: 2, fill: fat ? SPRITE.glow : SPRITE.hi, transform: piv }, g);
   }
   const MARINE_POSES = {
-    front(g, T, t) {
+    front(g, T, t, k) {
       mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.13);
       mChest(g, T, t, T * 0.42, T * 0.34, T * 0.03);
       mPauldron(g, T, t, -T * 0.25, -T * 0.12, T * 0.135); mPauldron(g, T, t, T * 0.25, -T * 0.11, T * 0.125);
-      mGun(g, T, t, -T * 0.04, T * 0.10, T * 0.50, 38);
+      mWeapon(g, T, t, -T * 0.04, T * 0.10, T * 0.50, 38, k);
       mHelmet(g, T, t, 0, -T * 0.28, T * 0.195, false); mVisorFront(g, T, t, 0, -T * 0.28, T * 0.195);
     },
-    threeqFront(g, T, t) {
+    threeqFront(g, T, t, k) {
       mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.11);
       mPauldron(g, T, t, -T * 0.21, -T * 0.12, T * 0.115);   // far shoulder
       mChest(g, T, t, T * 0.38, T * 0.34, T * 0.03);
-      mGun(g, T, t, 0, T * 0.08, T * 0.50, 45);              // aims down-right
+      mWeapon(g, T, t, 0, T * 0.08, T * 0.50, 45, k);        // aims down-right
       mPauldron(g, T, t, T * 0.23, -T * 0.11, T * 0.14);     // near shoulder
       mHelmet(g, T, t, T * 0.04, -T * 0.28, T * 0.195, false); mVisor3q(g, T, t, T * 0.04, -T * 0.28, T * 0.195, 1);
     },
-    side(g, T, t) {
+    side(g, T, t, k) {
       mShadow(g, T); mBoot(g, T, -T * 0.02); mBoot(g, T, T * 0.06);
       mPauldron(g, T, t, -T * 0.13, -T * 0.11, T * 0.10);    // far
       mChest(g, T, t, T * 0.30, T * 0.34, T * 0.02);
-      mGun(g, T, t, T * 0.06, -T * 0.005, T * 0.56, 0);      // points forward (right)
+      mWeapon(g, T, t, T * 0.06, -T * 0.005, T * 0.56, 0, k); // points forward (right)
       mPauldron(g, T, t, T * 0.07, -T * 0.11, T * 0.14);     // near
       mHelmet(g, T, t, T * 0.05, -T * 0.28, T * 0.195, false); mVisorSide(g, T, t, T * 0.05, -T * 0.28, T * 0.195);
     },
-    backThreeq(g, T, t) {
+    backThreeq(g, T, t, k) {
       mShadow(g, T); mBoot(g, T, -T * 0.10); mBoot(g, T, T * 0.13);
       mPauldron(g, T, t, -T * 0.21, -T * 0.12, T * 0.115);
-      mChest(g, T, t, T * 0.38, T * 0.34, T * 0.03, true); mBackpack(g, T);
-      el('rect', { x: T * 0.1, y: -T * 0.06, width: T * 0.34, height: T * 0.055, rx: 2, fill: SPRITE.d, transform: `rotate(-38 ${T * 0.1} ${-T * 0.04})` }, g);   // barrel over shoulder
-      el('rect', { x: T * 0.4, y: -T * 0.075, width: T * 0.07, height: T * 0.05, rx: 2, fill: SPRITE.hi, transform: `rotate(-38 ${T * 0.1} ${-T * 0.04})` }, g);  // muzzle tip
+      mChest(g, T, t, T * 0.38, T * 0.34, T * 0.03, true); mBackpack(g, T, k);
+      mSlung(g, T, k);                                       // weapon slung over the shoulder
       mPauldron(g, T, t, T * 0.23, -T * 0.11, T * 0.14);
       mHelmet(g, T, t, T * 0.04, -T * 0.28, T * 0.195, true);
     },
-    back(g, T, t) {
+    back(g, T, t, k) {
       mShadow(g, T); mBoot(g, T, -T * 0.13); mBoot(g, T, T * 0.13);
       mPauldron(g, T, t, -T * 0.25, -T * 0.12, T * 0.13); mPauldron(g, T, t, T * 0.25, -T * 0.12, T * 0.13);
-      mChest(g, T, t, T * 0.42, T * 0.34, T * 0.03, true); mBackpack(g, T);
+      mChest(g, T, t, T * 0.42, T * 0.34, T * 0.03, true); mBackpack(g, T, k);
       el('rect', { x: -T * 0.03, y: -T * 0.34, width: T * 0.05, height: T * 0.12, rx: 2, fill: SPRITE.d }, g);   // antenna
       mHelmet(g, T, t, 0, -T * 0.28, T * 0.195, true);
     },
@@ -710,13 +760,13 @@ LS.render = (function () {
       requestAnimationFrame(f);
     });
   }
-  function drawMarine(parent, T, facing, team, id) {
+  function drawMarine(parent, T, facing, team, id, weapon) {
     const [pose, mirror] = FACING_POSE[facing] || ['front', false];
     const animG = el('g', {}, parent);            // idle breathing (SMIL)
     idleBob(animG, id);
     const actionG = el('g', {}, animG);           // walk / recoil / throw (JS)
     const mir = el('g', mirror ? { transform: 'scale(-1,1)' } : {}, actionG);
-    MARINE_POSES[pose](mir, T, teamPal(team));
+    MARINE_POSES[pose](mir, T, teamPal(team), weapon);
     return actionG;
   }
 
@@ -725,7 +775,7 @@ LS.render = (function () {
     if (LS.state.selectedId === u.id) {
       el('circle', { cx: 0, cy: 0, r: T * 0.47, fill: 'none', stroke: C.select, 'stroke-width': 2.5, 'stroke-dasharray': '5 4' }, g);
     }
-    const action = drawMarine(g, T, u.facing, u.team, u.id);
+    const action = drawMarine(g, T, u.facing, u.team, u.id, u.weapon);
     const bw = T * 0.5, bh = 4, bx = -bw / 2, by = -T * 0.56;
     el('rect', { x: bx, y: by, width: bw, height: bh, rx: 2, fill: 'rgba(0,0,0,0.55)' }, g);
     el('rect', { x: bx, y: by, width: bw * (u.hp / u.maxHp), height: bh, rx: 2, fill: u.hp / u.maxHp > 0.4 ? '#6bd86b' : '#e0b13a' }, g);
