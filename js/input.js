@@ -184,10 +184,14 @@ LS.input = (function () {
         return;
       }
       const g = grenades[i++];
-      const hits = LS.game.detonateGrenade(g);
-      LS.render.explosionFx(g, hits, () => {
-        LS.render.draw();
-        if (LS.config.anim.enabled) setTimeout(next, 140); else next();
+      // scroll to the blast first so it always happens on screen — especially a grenade cooked off
+      // at the end of the AI's turn, which might otherwise detonate off-camera
+      LS.render.focusTile(g.x, g.y, () => {
+        const hits = LS.game.detonateGrenade(g);
+        LS.render.explosionFx(g, hits, () => {
+          LS.render.draw();
+          if (LS.config.anim.enabled) setTimeout(next, 140); else next();
+        });
       });
     }
     next();
