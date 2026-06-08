@@ -199,38 +199,40 @@ LS.ai = (function () {
     }
     return null;
   }
-  // ALERT pursuit with a search-and-return: head for the lead; on reaching a cold trail, guard that
-  // spot for a turn, then walk home to your post — so a search reads as sweep-then-return, not a
-  // guard frozen on an empty tile. A fresh lead anywhere cancels it and pursuit resumes. On the way,
-  // a guard that already covers a doorway/approach holds overwatch there (reaction shot reserved)
-  // rather than charging into the open.
-  function huntDecision(u) {
-    const post = u.post || { x: u.x, y: u.y };
-    const goal = huntGoal(u);
-    if (!goal) { u.searchPhase = null; return guardIdle(u, post); } // no lead at all — just hold station
-    const near = (s) => s && Math.abs(s.x - goal.x) + Math.abs(s.y - goal.y) <= 2;
-
-    if (u.searchPhase && !near(u.searchSpot)) u.searchPhase = null;       // a new lead — drop the old search
-    if (!u.searchPhase && near(u.searchedSpot)) return guardIdle(u, post); // already swept this — hold at post
-
-    if (u.searchPhase === 'guard') {
-      if (u.searchTurn === LS.state.turnCount) return guardIdle(u, u.searchSpot, 'search'); // guard the area this turn
-      u.searchPhase = 'return';                                          // a turn has passed — head home
-    }
-    if (u.searchPhase === 'return') {
-      if (LS.los.dist(u.x, u.y, post.x, post.y) <= 1) { u.searchPhase = null; return guardIdle(u, post); }
-      return u.ap >= cfg().ap.moveOrtho ? navStep(u, post, 'return') : { type: 'end' };
-    }
-    // pursuing the lead
-    if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
-    // sentries hold overwatch on a chokepoint they cover (reaction shot reserved); patrollers are the
-    // rovers — they keep pushing and searching, so the squad both covers the approaches and hunts.
-    if (!u.patrol && LS.game.alertLevel(u.team) === 'alert' && LS.game.canSnap(u)) {
+  // after the trail is cold (lead already swept, or no lead): a sentry holds overwatch on a chokepoint
+  // toward where the intruder was; everyone else (patrollers, or no chokepoint to cover) idles on station.
+  function holdOrIdle(u, post, goal) {
+    if (goal && !u.patrol && LS.game.alertLevel(u.team) === 'alert' && LS.game.canSnap(u)) {
       const watch = chokepointToward(u, goal);
       if (watch) return { type: 'overwatch', at: watch };
     }
+    return guardIdle(u, post);
+  }
+  // ALERT: PURSUE the fresh lead first — go to where the intruder was last seen, opening doors (interior
+  // AND external) on the way — then guard that spot a turn and walk home. Only once a lead has been swept
+  // (or there's none) does a sentry settle into holding overwatch on the approach. So guards genuinely
+  // sally out after the player rather than camping a doorway from the off.
+  function huntDecision(u) {
+    const post = u.post || { x: u.x, y: u.y };
+    const goal = huntGoal(u);
+    if (!goal) { u.searchPhase = null; return holdOrIdle(u, post, null); } // no lead — hold station
+    const near = (s) => s && Math.abs(s.x - goal.x) + Math.abs(s.y - goal.y) <= 2;
+
+    if (u.searchPhase && !near(u.searchSpot)) u.searchPhase = null;        // a fresh lead cancels the old search
+    if (!u.searchPhase && near(u.searchedSpot)) return holdOrIdle(u, post, goal); // already swept — hold the line
+
+    if (u.searchPhase === 'guard') {
+      if (u.searchTurn === LS.state.turnCount) return guardIdle(u, u.searchSpot, 'search'); // guard the area this turn
+      u.searchPhase = 'return';                                           // a turn has passed — head home
+    }
+    if (u.searchPhase === 'return') {
+      if (LS.los.dist(u.x, u.y, post.x, post.y) <= 1) { u.searchPhase = null; return holdOrIdle(u, post, goal); }
+      return u.ap >= cfg().ap.moveOrtho ? navStep(u, post, 'return') : { type: 'end' };
+    }
+    // pursuing a fresh lead — head for it, opening any door (incl. external) on the route
+    if (u.ap < cfg().ap.moveOrtho) return { type: 'end' };
     const act = LS.los.dist(u.x, u.y, goal.x, goal.y) <= 1 ? { type: 'end' } : navStep(u, goal, 'hunt');
-    if (act.type === 'end') { // reached the spot (or blocked) — begin guarding it, remember we swept it
+    if (act.type === 'end') { // reached the spot (or blocked) — guard it a turn, remember we swept it
       u.searchPhase = 'guard'; u.searchSpot = { x: u.x, y: u.y };
       u.searchedSpot = { x: goal.x, y: goal.y }; u.searchTurn = LS.state.turnCount;
       return guardIdle(u, u.searchSpot, 'search');
