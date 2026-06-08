@@ -2,6 +2,10 @@
 """Tiny static dev server that disables caching, so code edits always load on reload."""
 import http.server
 import socketserver
+import os
+
+# serve the project regardless of the working directory we were launched from
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 PORT = 8753
 
