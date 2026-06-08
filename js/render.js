@@ -624,7 +624,16 @@ LS.render = (function () {
   }
   // pick the held weapon by kind (laser = the default rifle)
   function mWeapon(g, T, t, ox, oy, L, rot, kind) {
-    if (kind === 'pistol') return mPistol(g, T, t, ox, oy, rot);
+    if (kind === 'pistol') {
+      // gunslinger: one arm extended from the shoulder toward the aim, pistol at the hand — held out
+      // to the side, well off the body centreline (never down at the midriff)
+      const rad = (rot || 0) * Math.PI / 180;
+      const sx = T * 0.12, sy = -T * 0.07;                              // gun-hand shoulder (raised, off-centre)
+      const hx = sx + Math.cos(rad) * T * 0.17, hy = sy + Math.sin(rad) * T * 0.17; // hand, arm reaching toward the aim
+      el('line', { x1: sx, y1: sy, x2: hx, y2: hy, stroke: t.base, 'stroke-width': T * 0.10, 'stroke-linecap': 'round' }, g);          // extended arm
+      el('line', { x1: sx, y1: sy, x2: (sx + hx) / 2, y2: (sy + hy) / 2, stroke: t.lt, 'stroke-width': T * 0.035, 'stroke-linecap': 'round', opacity: 0.5 }, g); // arm sheen (light from top)
+      return mPistol(g, T, t, hx, hy, rot);
+    }
     if (kind === 'plasma') return mPlasma(g, T, t, ox, oy, rot);
     return mGun(g, T, t, ox, oy, L, rot);
   }
